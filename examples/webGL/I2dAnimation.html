@@ -1,14 +1,21 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <label style="position: absolute; color: white;"> Webgl Example </label>
-        <div id="canvas" style="height: 100%; width: 100%; background: black;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-        <script type="text/javascript">
-            var webglRenderer = i2d.webglLayer(
+    <body style="height: 100%">
+        <label style="position: absolute; color: white"> Webgl Example </label>
+        <div id="canvas" style="height: 100%; width: 100%; background: black"></div>
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {webglLayer, path as i2dPath, chain as i2dChain, color as i2dColor } from "i2djs";
+            var webglRenderer = webglLayer(
                 "#canvas",
                 {
                     premultipliedAlpha: false,
@@ -19,22 +26,21 @@
                 {}
             );
 
-            var ichainInstance = i2d.chain.sequenceChain().loop(10);
-            var mchainInstance = i2d.chain.sequenceChain().loop(10);
-            var dchainInstance = i2d.chain.sequenceChain().loop(10);
+            var ichainInstance = i2dChain.sequenceChain().loop(10);
+            var mchainInstance = i2dChain.sequenceChain().loop(10);
+            var dchainInstance = i2dChain.sequenceChain().loop(10);
 
             /************** Points *****************/
-            var path_ = i2d
-                .Path()
+            var path_ = i2dPath()
                 .m(false, { x: 350, y: 225 })
                 .l(true, { x: 450, y: 225 })
                 .l(true, { x: 450, y: 475 })
                 .l(true, { x: 570, y: 475 });
 
-            var path3 = i2d.Path(
+            var path3 = i2dPath(
                 "M461,359.245249 L461,230 L561.860025,230.999803 C561.860025,230.999803 672.401935,230 672.401935,353.481856 C672.401935,486.963711 561.860025,479.591179 561.860025,479.591179"
             );
-            var path2 = i2d.Path(
+            var path2 = i2dPath(
                 "M286,227 L556.149478,227 L556.149478,352.5 L418.443053,352.5 L418.443053,478 L675.470664,478"
             );
 
@@ -64,9 +70,8 @@
                     .createEl({
                         el: "group",
                         attr: {
-                            shaderType: "point",
+                            // shaderType: "point",
                             transform: {
-                                scale: [1, 1],
                                 translate: [position.x, position.y],
                             },
                         },
@@ -75,6 +80,9 @@
                     .createEls(pointsData, {
                         el: "point",
                         attr: {
+                            // transform: {
+                            //     translate: [position.x, position.y],
+                            // },
                             x: function (d) {
                                 return d.x + Math.cos(d.angle) * (Math.random() * 300 + 200);
                             },
@@ -86,16 +94,16 @@
                         style: {
                             fill:
                                 path === path2
-                                    ? i2d.color.rgba(255, 132, 132, 255)
-                                    : i2d.color.rgba(0, 203, 255, 255),
+                                    ? i2dColor.rgba(255, 132, 132, 255)
+                                    : i2dColor.rgba(0, 203, 255, 255),
                         },
                     });
 
                 chain_.add(function () {
-                    var parallelChain = i2d.chain.parallelChain();
+                    var parallelChain = i2dChain.parallelChain();
                     parallelChain.add(
                         pointsRef.animateExe({
-                            duration: 1000, //1000+Math.random()*1000,
+                            duration: 1000,
                             // ease:'easeInCubic',
                             attr: {
                                 x: function (d) {
@@ -111,7 +119,7 @@
                 });
 
                 chain_.add(function () {
-                    var pathChain = i2d.chain.parallelChain();
+                    var pathChain = i2dChain.parallelChain();
                     pathChain.add(
                         pointsRef.animateExe({
                             duration: 5000,
@@ -136,7 +144,7 @@
                 chain_.start();
 
                 function disperseParticles() {
-                    var parallelChain4 = i2d.chain.parallelChain();
+                    var parallelChain4 = i2dChain.parallelChain();
                     parallelChain4.add(
                         pointsRef.animateExe({
                             duration: 2000, //+Math.random()*1000,

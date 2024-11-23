@@ -1,42 +1,50 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
+    <body style="height: 100%">
         <div
             id="Mycanvas"
-            style="
-                height: 100%;
-                width: 100%;
-                position: absolute;
-                background: black;
-                color: #27ace5;
-            "
+            style="height: 100%; width: 100%; position: absolute; background: black; color: #27ace5"
         >
             <form>
                 <input
                     type="radio"
                     name="type"
                     value="parallel"
+                    id="parallel"
                     checked
-                    onclick="onRadiobuttonClick('parallel');"
                 />
                 Parallel Chain
                 <input
                     type="radio"
                     name="type"
                     value="sequence"
-                    onclick="onRadiobuttonClick('sequence');"
+                    id="sequence"
                 />
                 Sequence Chain
             </form>
         </div>
 
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
-            var renderer_ = i2d.canvasLayer("#Mycanvas", {}, false);
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {canvasLayer, queue, chain as i2dChain} from "i2djs";
+            let parallel = document.getElementById("parallel");
+            parallel.addEventListener("click", () => {
+                onRadiobuttonClick('parallel');
+            })
+            let sequence = document.getElementById("sequence");
+            sequence.addEventListener("click", () => {
+                onRadiobuttonClick('sequence');
+            })
+            var renderer_ = canvasLayer("#Mycanvas", {}, {});
 
             var g = renderer_.createEl({
                 el: "group",
@@ -59,7 +67,7 @@
                     g.fetchEls("circle").remove();
                 }
 
-                i2d.queue.clearAll();
+                queue.clearAll();
                 render(data);
             }
 
@@ -68,8 +76,8 @@
             function render(d) {
                 var chain =
                     selectedtype === "parallel"
-                        ? i2d.chain.parallelChain()
-                        : i2d.chain.sequenceChain();
+                        ? i2dChain.parallelChain()
+                        : i2dChain.sequenceChain();
                 g.createEls(d.children, {
                     el: "line",
                     attr: {

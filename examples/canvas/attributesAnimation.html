@@ -1,15 +1,22 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <label style="position: absolute; color: white;"> Canvas Example </label>
-        <div id="myCanvas" style="height: 100%; width: 100%;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
-            var renderer = i2d.canvasLayer("#myCanvas", {}, {});
+    <body style="height: 100%">
+        <label style="position: absolute; color: white"> Canvas Example </label>
+        <div id="myCanvas" style="height: 500px; width: 700px"></div>
+        <!-- <script type="text/javascript" src="../../dist/i2d.js"></script> -->
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {canvasLayer} from "i2djs";
+            var renderer = canvasLayer("#myCanvas", {}, {});
 
             var circle = renderer
                 .createEl({
@@ -25,7 +32,7 @@
                     },
                 })
                 .animateTo({
-                    duration: 500,
+                    duration: 1000,
                     loop: 10,
                     ease: "easeInOutSin",
                     direction: "alternate",
@@ -35,6 +42,45 @@
                     style: {
                         fillStyle: "#00ff00",
                     },
+                });
+
+            var rectsRef = renderer
+                .createEl({
+                    el: "rect",
+                    attr: {
+                        x: 100,
+                        y: 100,
+                        width: 200,
+                        height: 200,
+                        transform: {
+                            // translate: [100, 100],
+                            rotate: [Math.PI * 0, 200, 200],
+                        },
+                    },
+                    style: {
+                        fillStyle: "#ff0000",
+                    },
+                })
+
+                rectsRef.animateTo({
+                    duration: 1000,
+                    loop: 10,
+                    attr: {
+                        transform: {
+                            // translate: [100, 100],
+                            // rotate: [Math.PI * 2.0, -150, -150]
+                            rotate: [360, 200, 200],
+                        },
+                    }
+                });
+
+                rectsRef.animateTo({
+                    duration: 1000,
+                    direction: "alternate",
+                    loop: 10,
+                    style: {
+                        fillStyle: "#00ff00",
+                    }
                 });
         </script>
     </body>

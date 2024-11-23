@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html style="height: 100%">
+    <head>
+        <title></title>
+    </head>
+    <body style="height: 100%; background: black">
+        <label style="position: absolute; color: white"> Webgl Example </label>
+        <div id="canvas" style="height: 50%; width: 100%"></div>
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {webglLayer, color as i2dColor, path as i2dPath, queue } from "i2djs";
+            let sin = Math.sin;
+            let abs = Math.abs;
+            let i = 0;
+            let width = 0;
+            let height = 0;
+            let webglRenderer, pathRef;
+            function render() {
+                webglRenderer = webglLayer(
+                    "#canvas",
+                    { depth: false, antialias: true },
+                    { enableEvents: false }
+                );
+                width = webglRenderer.width;
+                height = webglRenderer.height;
+
+                pathRef = webglRenderer.createEl({
+                    el: "group",
+                    attr: {
+                        transform: {
+                            translate: [0, 0],
+                        },
+                        shaderType: "path",
+                    },
+                    bbox: false,
+                });
+                queue.onRequestFrame(function (t) {
+                    draw();
+                });
+            }
+
+            
+            var ii = 100;
+            function draw() {
+                var points = [];
+                var amplitud = height * (sin(i) * 0.1);
+                var space = abs(sin(i) * 0.001) * 100 + 150;
+                points[points.length] = { x: -space, y: 0 };
+                for (var x = 0; x < width; x += space) {
+                    var y = height * (sin(i) * 0.01 + 0.5);
+                    y += sin(i - x * 0.01 + i * 0.1 * 0.5 * -50) * amplitud;
+                    y += sin(i + x * 0.02) * amplitud;
+                    y += sin(i - x * 0.03 + i * 0.1 * 0.5 * 50) * amplitud;
+                    points[points.length] = { x, y };
+                }
+                points[points.length] = { x: width, y: y };
+                points[points.length] = { x: width + space, y: y };
+
+                let path = i2dPath();
+                path.points(points);
+                var rgb = i2dColor.hslToRgb("hsl(" + (ii % 360) + ",100%," + 40 + "%)");
+                rgb.a = 100;
+                pathRef
+                    .createEl({
+                        el: "path",
+                        attr: {
+                            d: path,
+                        },
+                        style: { stroke: rgb, globalAlpha: 1, lineWidth: 3 },
+                        bbox: false
+                    })
+                    .animateTo({
+                        duration: 4000,
+                        attr: {},
+                        style: {
+                            opacity: 0
+                        },
+                        end: function () {
+                            this.remove();
+                        },
+                    });
+                i += 0.01;
+                ii += 1;
+            }
+
+            render();
+        </script>
+    </body>
+</html>

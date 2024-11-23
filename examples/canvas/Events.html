@@ -1,30 +1,43 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <label style="position: absolute; color: white;"> Canvas Example </label>
+    <body style="height: 100%">
+        <label style="position: absolute; color: white"> Canvas Example </label>
         <div
-            style="height: 100%; width: 100%; position: absolute; background: black;"
+            style="height: 100%; width: 100%; position: absolute; background: black"
             id="myCanvas"
         ></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
-            var renderer_ = i2d.canvasLayer("#myCanvas", {}, true);
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import { canvasLayer, path as i2dPath } from "i2djs";
+            var renderer_ = canvasLayer("#myCanvas", {}, {});
             var i = 0;
             var w = renderer_.width;
             var h = renderer_.height;
 
-            var g = renderer_.createEl({
-                el: "group",
-                attr: {
-                    transform: {
-                        translate: [w / 2 - 50, h / 2 - 50],
+            var g = renderer_
+                .createEl({
+                    el: "group",
+                    attr: {
+                        transform: {
+                            translate: [w / 2 - 50, h / 2 - 50],
+                        },
                     },
-                },
-            });
+                })
+                .on("dblclick", function () {
+                    console.log("parent dbclick");
+                })
+                .on("click", function () {
+                    console.log("parent click");
+                });
 
             g.createEl({
                 el: "rect",
@@ -46,20 +59,21 @@
                     console.log("touchend");
                 })
                 .on("click", function () {
-                    this.setStyle("fillStyle", "hsl(100,50%,50%)");
+                    console.log("leaf click");
+                    this.setStyle("globalAlpha", "0.5");
                 })
                 .on("mousein", function () {
-                    this.setStyle("fillStyle", "#ad5858");
+                    this.setStyle("globalAlpha", "0.5");
                 })
                 .on("mouseout", function () {
-                    this.setStyle("fillStyle", "hsl(100,100%,50%)");
-                })
-                .on("mousedown", function () {
-                    this.setStyle("fillStyle", "hsl(100,80%,30%)");
-                })
-                .on("mouseup", function () {
-                    this.setStyle("fillStyle", "hsl(100,100%,50%)");
+                    this.setStyle("globalAlpha", "1");
                 });
+            // .on("mousedown", function () {
+            //     this.setStyle("fillStyle", "hsl(100,80%,30%)");
+            // })
+            // .on("mouseup", function () {
+            //     this.setStyle("fillStyle", "hsl(100,100%,50%)");
+            // });
 
             var linearGradient = g.createLinearGradient({
                 id: "linearG",
@@ -68,9 +82,9 @@
                 x2: 0,
                 y2: 100,
                 colorStops: [
-                    { color: "#948e4e", value: 0 },
-                    { color: "#faed68", value: 50 },
-                    { color: "#948e4e", value: 100 },
+                    { color: "#948e4e", offset: 0 },
+                    { color: "#faed68", offset: 50 },
+                    { color: "#948e4e", offset: 100 },
                 ],
             });
 
@@ -81,9 +95,9 @@
                 x2: 0,
                 y2: 100,
                 colorStops: [
-                    { color: "#ad5858", value: 0 },
-                    { color: "#FF8383", value: 50 },
-                    { color: "#ad5858", value: 100 },
+                    { color: "#ad5858", offset: 0 },
+                    { color: "#FF8383", offset: 50 },
+                    { color: "#ad5858", offset: 100 },
                 ],
             });
 
@@ -98,8 +112,7 @@
                             var yPos = 100;
                             var rangeBandMid = rangeBand / 2;
 
-                            var path = i2d
-                                .Path()
+                            var path = i2dPath()
                                 .m(false, { x: xPos, y: 0 })
                                 .c(
                                     false,

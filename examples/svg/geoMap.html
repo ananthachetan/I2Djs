@@ -1,14 +1,21 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <div id="myCanvas" style="height: 100%; width: 100%; position: absolute;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
+    <body style="height: 100%">
+        <div id="myCanvas" style="height: 100%; width: 100%; position: absolute"></div>
         <script type="text/javascript" src="https://d3js.org/d3.v5.min.js"></script>
 
-        <script type="text/javascript">
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {svgLayer, behaviour } from "i2djs";
             var width = 960;
             var height = 500;
 
@@ -23,8 +30,8 @@
                 .geoPath() // path generator that will convert GeoJSON to SVG paths
                 .projection(projection);
 
-            var renderer = i2d.svgLayer("#myCanvas", {}, {});
-            var zoomInstance = i2d.behaviour.zoom();
+            var renderer = svgLayer("#myCanvas", {}, {});
+            var zoomInstance = behaviour.zoom();
 
             var worldmap = d3.json("https://nswamy14.github.io/geoJson/world.geo.json");
 
@@ -54,11 +61,7 @@
                             d: path(values[0]),
                         },
                         style: {
-                            // 'stroke-width': 0.5,
-                            // stroke: '#ff0000',
-                            // shadowColor: 'black',
                             fill: "rgba(150, 0, 0, 0.2)",
-                            // lineCap: 'round'
                         },
                     })
                     .on("mouseover", function () {

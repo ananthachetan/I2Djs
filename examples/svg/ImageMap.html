@@ -1,17 +1,23 @@
 <!DOCTYPE html>
-<html lang="en" style="height: 100%;">
+<html lang="en" style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
+    <body style="height: 100%">
         <input type="file" onchange="onFileSelected(event)" value="chose picture" />
-        <div id="imgParent" style="display: none;">
+        <div id="imgParent" style="display: none">
             <img id="myimage" />
         </div>
-        <div id="myCanvas" style="height: 100%; width: 100%;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
+        <div id="myCanvas" style="height: 100%; width: 100%"></div>
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {svgLayer } from "i2djs";
             var imgtag = document.getElementById("myimage");
             imgtag.onload = render;
 
@@ -26,7 +32,7 @@
                 reader.readAsDataURL(selectedFile);
             }
 
-            var renderer_ = i2d.svgLayer("#myCanvas", {
+            var renderer_ = svgLayer("#myCanvas", {
                 events: true,
                 selectiveClear: false,
             });

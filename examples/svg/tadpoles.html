@@ -1,19 +1,25 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <label style="position: absolute; color: white;"> SVG Example </label>
+    <body style="height: 100%">
+        <label style="position: absolute; color: white"> SVG Example </label>
         <div
             id="mySVG"
-            style="position: absolute; height: 100%; width: 100%; background: black;"
+            style="position: absolute; height: 100%; width: 100%; background: black"
         ></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
-            var renderer_ = i2d.svgLayer("#mySVG", {});
-            const n = 250;
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {svgLayer, queue } from "i2djs";
+            var renderer_ = svgLayer("#mySVG", {});
+            const n = 1000;
             const v = 2;
             const m = 12;
             let height = renderer_.height;
@@ -34,13 +40,13 @@
             var nodes = group
                 .createEls(tadpoles, {
                     el: "group",
+                    style: { fill: "white" },
                     bbox: false,
                 })
                 .forEach(function (d) {
                     this.createEl({
                         el: "ellipse",
-                        attr: { cx: 0, cy: 0, rx: 6.5, ry: 4 },
-                        style: { fill: "white" },
+                        attr: { cx: 0, cy: 0, rx: 6.5, ry: 4 }
                     });
                     this.createEl({
                         el: "polyline",
@@ -56,7 +62,7 @@
             let atan2 = Math.atan2;
             let sin = Math.sin;
             let sqrt = Math.sqrt;
-            i2d.queue.onRequestFrame(function (t) {
+            queue.onRequestFrame(function (t) {
                 var time = new Date();
                 nodes.forEach(function (t) {
                     let dx = t.vx;

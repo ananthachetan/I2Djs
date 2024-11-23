@@ -4,6 +4,11 @@ import geometry from "./geometry.js";
 import queue from "./queue.js";
 import ease from "./ease.js";
 import chain from "./chain.js";
+import { interpolate } from "flubber";
+import colorMap from "./colorMap.js";
+// import createBezierBuilder from "adaptive-bezier-curve";
+// import createQuadraticBuilder from "adaptive-quadratic-curve";
+
 
 let morphIdentifier = 0;
 const t2DGeometry = geometry;
@@ -13,6 +18,61 @@ const easying = ease;
 function animeId() {
     morphIdentifier += 1;
     return "morph_" + morphIdentifier;
+}
+
+function pathCmdIsValid(_) {
+    return (
+        [
+            "m",
+            "M",
+            "v",
+            "V",
+            "l",
+            "L",
+            "h",
+            "H",
+            "q",
+            "Q",
+            "c",
+            "C",
+            "s",
+            "S",
+            "a",
+            "A",
+            "z",
+            "Z",
+        ].indexOf(_) !== -1
+    );
+}
+
+function updateBBox(d, pd, minMax, bbox) {
+    const updateBounds = (point) => {
+        minMax.minX = Math.min(minMax.minX, point.x);
+        minMax.maxX = Math.max(minMax.maxX, point.x);
+        minMax.minY = Math.min(minMax.minY, point.y);
+        minMax.maxY = Math.max(minMax.maxY, point.y);
+    };
+
+
+    if (["V", "H", "L", "v", "h", "l"].includes(d.type)) {
+        [d.p0 || pd.p1, d.p1].forEach(updateBounds);
+    } else if (["Q", "C", "q", "c"].includes(d.type)) {
+        const co = t2DGeometry.cubicBezierCoefficients(d);
+        const exe = t2DGeometry.cubicBezierTransition.bind(null, d.p0, co);
+
+        for (let ii = 0; ii <= 1; ii += 0.05) {
+            updateBounds(exe(ii));
+        }
+    } else {
+        updateBounds(d.p0);
+    }
+
+    Object.assign(bbox, {
+        x: minMax.minX,
+        y: minMax.minY,
+        width: minMax.maxX - minMax.minX,
+        height: minMax.maxY - minMax.minY,
+    });
 }
 
 function pathParser(path) {
@@ -107,11 +167,17 @@ function m(rel, p0) {
         p0: this.cp,
         length: this.segmentLength,
 
-        pointAt(f) {
+        pointAt() {
             return this.p0;
         },
     });
     this.pp = this.cp;
+    updateBBox(
+        this.stack[this.stack.length - 1],
+        this.stack[this.stack.length - 2],
+        this.minMax,
+        this.BBox
+    );
     return this;
 }
 
@@ -135,6 +201,12 @@ function v(rel, p1) {
     });
     this.length += this.segmentLength;
     this.pp = this.cp;
+    updateBBox(
+        this.stack[this.stack.length - 1],
+        this.stack[this.stack.length - 2],
+        this.minMax,
+        this.BBox
+    );
     return this;
 }
 
@@ -161,6 +233,12 @@ function l(rel, p1) {
     });
     this.length += this.segmentLength;
     this.pp = this.cp;
+    updateBBox(
+        this.stack[this.stack.length - 1],
+        this.stack[this.stack.length - 2],
+        this.minMax,
+        this.BBox
+    );
     return this;
 }
 
@@ -186,6 +264,12 @@ function h(rel, p1) {
     });
     this.length += this.segmentLength;
     this.pp = this.cp;
+    updateBBox(
+        this.stack[this.stack.length - 1],
+        this.stack[this.stack.length - 2],
+        this.minMax,
+        this.BBox
+    );
     return this;
 }
 
@@ -202,8 +286,13 @@ function z() {
         },
     });
     this.length += this.segmentLength;
-    this.pp = this.cp; // this.stackGroup.push(this.stack)
-
+    this.pp = this.cp;
+    updateBBox(
+        this.stack[this.stack.length - 1],
+        this.stack[this.stack.length - 2],
+        this.minMax,
+        this.BBox
+    );
     return this;
 }
 
@@ -232,14 +321,25 @@ function q(rel, c1, ep) {
         pointAt(f) {
             return t2DGeometry.bezierTransition(this.p0, this.cntrl1, this.p1, f);
         },
+
+        // getPoints() {
+        //     return createQuadraticBuilder([this.p0.x, this.p0.y], [this.cntrl1.x, this.cntrl1.y], [this.p1.x, this.p1.y]);
+        // }
     });
     this.length += this.segmentLength;
     this.pp = this.cp;
     this.cntrl = cntrl1;
+    updateBBox(
+        this.stack[this.stack.length - 1],
+        this.stack[this.stack.length - 2],
+        this.minMax,
+        this.BBox
+    );
     return this;
 }
 
 function c(rel, c1, c2, ep) {
+    const self = this;
     const temp = relative(rel, this.pp, {
         x: 0,
         y: 0,
@@ -273,9 +373,18 @@ function c(rel, c1, c2, ep) {
         pointAt(f) {
             return t2DGeometry.cubicBezierTransition(this.p0, this.co, f);
         },
+        // getPoints() {
+        //     return createBezierBuilder([this.p0.x, this.p0.y], [this.cntrl1.x, this.cntrl1.y], [this.cntrl2.x, this.cntrl2.y], [this.p1.x, this.p1.y]);
+        // }
     });
     this.length += this.segmentLength;
     this.pp = this.cp;
+    updateBBox(
+        self.stack[self.stack.length - 1],
+        self.stack[self.stack.length - 2],
+        self.minMax,
+        self.BBox
+    );
     return this;
 }
 
@@ -314,8 +423,16 @@ function s(rel, c2, ep) {
         pointAt(f) {
             return t2DGeometry.cubicBezierTransition(this.p0, this.co, f);
         },
+        // getPoints() {
+        //     return createBezierBuilder([this.p0.x, this.p0.y], [this.cntrl1.x, this.cntrl1.y], [this.cntrl2.x, this.cntrl2.y], [this.p1.x, this.p1.y]);
+        // }
     }); // this.stack.segmentLength += this.segmentLength
-
+    updateBBox(
+        this.stack[this.stack.length - 1],
+        this.stack[this.stack.length - 2],
+        this.minMax,
+        this.BBox
+    );
     this.length += this.segmentLength;
     this.pp = this.cp;
     this.cntrl = cntrl2;
@@ -381,11 +498,21 @@ function a(rel, rx, ry, xRotation, arcLargeFlag, sweepFlag, ep) {
             pointAt(f) {
                 return t2DGeometry.bezierTransition(this.p0, this.cntrl1, this.cntrl2, this.p1, f);
             },
+            // getPoints() {
+            //     return createQuadraticBuilder([this.p0.x, this.p0.y], [this.cntrl1.x, this.cntrl1.y], [this.p1.x, this.p1.y]);
+            // }
         });
         self.length += segmentLength;
+        updateBBox(
+            self.stack[self.stack.length - 1],
+            self.stack[self.stack.length - 2],
+            self.minMax,
+            self.BBox
+        );
     });
     this.pp = this.cp;
     this.cntrl = null;
+
     return this;
 }
 
@@ -393,6 +520,20 @@ function Path(path) {
     this.stack = [];
     this.length = 0;
     this.stackGroup = [];
+
+    this.BBox = {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+    };
+
+    this.minMax = {
+        minX: Infinity,
+        minY: Infinity,
+        maxX: -Infinity,
+        maxY: -Infinity,
+    };
 
     if (path) {
         this.parse(path);
@@ -412,6 +553,50 @@ Path.prototype = {
     fetchXY,
 };
 
+Path.prototype.points = function (points) {
+    if (typeof this.f === "undefined") this.f = 0.3;
+    if (typeof this.t === "undefined") this.t = 0.6;
+    if (points.length === 0) return;
+
+    this.m(true, { x: points[0].x, y: points[0].y });
+
+    var m = 0;
+    var dx1 = 0;
+    var dy1 = 0;
+    let dx2 = 0;
+    let dy2 = 0;
+
+    var preP = points[0];
+
+    for (var i = 1; i < points.length; i++) {
+        var curP = points[i];
+        var nexP = points[i + 1];
+        dx2 = 0;
+        dy2 = 0;
+        if (nexP) {
+            m = (nexP.y - preP.y) / (nexP.x - preP.x);
+            dx2 = (nexP.x - curP.x) * -this.f;
+            dy2 = dx2 * m * this.t;
+        }
+        this.c(
+            true,
+            { x: preP.x - dx1, y: preP.y - dy1 },
+            { x: curP.x + dx2, y: curP.y + dy2 },
+            { x: curP.x, y: curP.y }
+        );
+
+        dx1 = dx2;
+        dy1 = dy2;
+        preP = curP;
+    }
+};
+Path.prototype.curveFfactor = function (f) {
+    this.f = f;
+};
+Path.prototype.curveTfactor = function (t) {
+    this.t = t;
+};
+
 Path.prototype.parse = function parse(path) {
     this.path = path;
     this.currPathArr = -1;
@@ -424,38 +609,9 @@ Path.prototype.parse = function parse(path) {
         this.case(this.pathArr[(this.currPathArr += 1)]);
     }
 
-    return this.stack;
-};
+    // this.BBox = getBBox(this.stackGroup);
 
-Path.prototype.execute = function (ctx, clippath) {
-    let c;
-    if (!clippath) {
-        ctx.beginPath();
-    }
-    for (let i = 0; i < this.stack.length; i++) {
-        c = this.stack[i];
-        if (c.type === "M" || c.type === "m") {
-            ctx.moveTo(c.p0.x, c.p0.y);
-        } else if (c.type === "Z" || c.type === "z") {
-            ctx.lineTo(c.p1.x, c.p1.y);
-        } else if (c.type === "C" || c.type === "c" || c.type === "S" || c.type === "s") {
-            ctx.bezierCurveTo(c.cntrl1.x, c.cntrl1.y, c.cntrl2.x, c.cntrl2.y, c.p1.x, c.p1.y);
-        } else if (c.type === "Q" || c.type === "q") {
-            ctx.quadraticCurveTo(c.cntrl1.x, c.cntrl1.y, c.p1.x, c.p1.y);
-        } else if (
-            c.type === "V" ||
-            c.type === "v" ||
-            c.type === "H" ||
-            c.type === "h" ||
-            c.type === "l" ||
-            c.type === "L"
-        ) {
-            ctx.lineTo(c.p1.x, c.p1.y);
-        }
-    }
-    if (!clippath) {
-        ctx.closePath();
-    }
+    return this.stack;
 };
 
 Path.prototype.fetchPathString = function () {
@@ -569,7 +725,7 @@ Path.prototype.getPointAtLength = function getPointAtLength(length) {
         y: 0,
     };
     let tLength = length;
-    this.stack.every((d, i) => {
+    this.stack.every((d) => {
         tLength -= d.length;
 
         if (Math.floor(tLength) >= 0) {
@@ -582,35 +738,118 @@ Path.prototype.getPointAtLength = function getPointAtLength(length) {
     return coOr;
 };
 
-Path.prototype.isValid = function isValid(_) {
-    return (
-        [
-            "m",
-            "M",
-            "v",
-            "V",
-            "l",
-            "L",
-            "h",
-            "H",
-            "q",
-            "Q",
-            "c",
-            "C",
-            "s",
-            "S",
-            "a",
-            "A",
-            "z",
-            "Z",
-        ].indexOf(_) !== -1
-    );
+Path.prototype.execute = function (ctx, clippath) {
+    let c;
+    if (!clippath) {
+        ctx.beginPath();
+    }
+    for (let i = 0; i < this.stack.length; i++) {
+        c = this.stack[i];
+        switch (c.type) {
+            case "M":
+            case "m":
+                ctx.moveTo(c.p0.x, c.p0.y);
+                break;
+            case "Z":
+            case "z":
+                ctx.lineTo(c.p1.x, c.p1.y);
+                break;
+            case "L":
+            case "l":
+            case "V":
+            case "v":
+            case "H":
+            case "h":
+                ctx.lineTo(c.p1.x, c.p1.y);
+                break;
+            case "C":
+            case "c":
+            case "S":
+            case "s":
+                ctx.bezierCurveTo(c.cntrl1.x, c.cntrl1.y, c.cntrl2.x, c.cntrl2.y, c.p1.x, c.p1.y);
+                break;
+            case "Q":
+            case "q":
+                ctx.quadraticCurveTo(c.cntrl1.x, c.cntrl1.y, c.p1.x, c.p1.y);
+                break;
+            default:
+                break;
+        }
+    }
+    if (!clippath) {
+        ctx.closePath();
+    }
 };
+
+// Path.prototype.getPoints = function () {
+//     const points = [];
+//     // let tLength = this.length;
+//     // let currD = this.stack[0];
+//     // let cumLength = 0;
+//     // let iLenFact = 0;
+//     let d;
+
+//     for (let i = 0; i < this.stack.length; i++) {
+//         d = this.stack[i];
+//         let xypoints;
+//         // const f = 0.05;
+//         // let tf = 0;
+//         switch (d.type) {
+//             case "M":
+//             case "m":
+//                 points.push([d.p0.x, d.p0.y]);
+//                 // points[points.length] = d.p0.x;
+//                 // points[points.length] = d.p0.y;
+//                 break;
+//             case "Z":
+//             case "z":
+//                 points.push([d.p1.x, d.p1.y]);
+//                 // points[points.length] = d.p1.x;
+//                 // points[points.length] = d.p1.y;
+//                 break;
+//             case "L":
+//             case "l":
+//             case "V":
+//             case "v":
+//             case "H":
+//             case "h":
+//                 points.push([d.p1.x, d.p1.y]);
+//                 // points[points.length] = d.p1.x;
+//                 // points[points.length] = d.p1.y;
+//                 break;
+//             case "C":
+//             case "c":
+//             case "S":
+//             case "s":
+//             case "Q":
+//             case "q":
+//                 xypoints = d.getPoints();
+//                 for(let i =0; i < xypoints.length; i++) {
+//                     points[points.length] = xypoints[i];
+//                     // points[points.length] = xypoints[i][1];
+//                 }
+//                 // while (tf <= 1.0) {
+//                 //     const xy = d.pointAt(tf);
+//                 //     points[points.length] = xy.x;
+//                 //     points[points.length] = xy.y;
+//                 //     tf += f;
+//                 // }
+//                 break;
+//             default:
+//                 break;
+//         }
+//     }
+//     return points;
+// };
 
 Path.prototype.case = function pCase(currCmd) {
     let currCmdI = currCmd;
-
-    if (this.isValid(currCmdI)) {
+    let rx;
+    let ry;
+    let xRotation;
+    let arcLargeFlag;
+    let sweepFlag;
+    if (pathCmdIsValid(currCmdI)) {
         this.PC = currCmdI;
     } else {
         currCmdI = this.PC;
@@ -687,11 +926,11 @@ Path.prototype.case = function pCase(currCmd) {
             break;
 
         case "a":
-            let rx = parseFloat(this.pathArr[(this.currPathArr += 1)]);
-            let ry = parseFloat(this.pathArr[(this.currPathArr += 1)]);
-            let xRotation = parseFloat(this.pathArr[(this.currPathArr += 1)]);
-            let arcLargeFlag = parseFloat(this.pathArr[(this.currPathArr += 1)]);
-            let sweepFlag = parseFloat(this.pathArr[(this.currPathArr += 1)]);
+            rx = parseFloat(this.pathArr[(this.currPathArr += 1)]);
+            ry = parseFloat(this.pathArr[(this.currPathArr += 1)]);
+            xRotation = parseFloat(this.pathArr[(this.currPathArr += 1)]);
+            arcLargeFlag = parseFloat(this.pathArr[(this.currPathArr += 1)]);
+            sweepFlag = parseFloat(this.pathArr[(this.currPathArr += 1)]);
             this.a(false, rx, ry, xRotation, arcLargeFlag, sweepFlag, this.fetchXY());
             break;
 
@@ -714,11 +953,62 @@ Path.prototype.case = function pCase(currCmd) {
     }
 };
 
+Path.prototype.getPath2DObject = function (pathStr) {
+    return new Path2D(pathStr || this.fetchPathString());
+}
+
+Path.prototype.getPathTexture = function (style = {}, refresh) {
+    if (!this.layer) {
+        this.layer = document.createElement("canvas");
+        this.ctx = this.layer.getContext("2d");
+        refresh = true;
+    }
+
+    if(refresh) {
+        let lineWidth = (style['lineWidth'] || 1) * 2;
+        const {x = 0, y= 0, height = 0, width = 0} = this.BBox;
+
+        this.pathNode = this.getPath2DObject();
+        this.layer.setAttribute("height", height + lineWidth * 2);
+        this.layer.setAttribute("width", width + lineWidth * 2);
+
+        this.ctx.clearRect(0, 0, width + lineWidth * 2, height + lineWidth * 2);
+
+        this.ctx.save();
+        
+        this.ctx.translate((x * -1 + lineWidth) || 0, (y * -1 + lineWidth) || 0);
+
+        for(let key in style) {
+            let value = style[key];
+            if (key === 'fillStyle' || key === 'strokeStyle') {
+                this.ctx[key] = colorMap.RGBAInstanceCheck(value) ? value.rgba : value;
+            } else {
+                if (typeof this.ctx[key] !== "function") {
+                    this.ctx[key] = value;
+                } else if (typeof this.ctx[key] === "function") {
+                    this.ctx[key](value);
+                }
+            }
+        }
+
+        if (style['fillStyle']) {
+            this.ctx.fill(this.pathNode);
+        }
+        if (style['strokeStyle']) {
+            this.ctx.stroke(this.pathNode);
+        }
+
+        this.ctx.restore();
+    }
+
+    return this.layer;
+}
+
 function relativeCheck(type) {
     return ["S", "C", "V", "L", "H", "Q"].indexOf(type) > -1;
 }
 
-let CubicBezierTransition = function CubicBezierTransition(type, p0, c1, c2, co, length) {
+const CubicBezierTransition = function CubicBezierTransition(type, p0, c1, c2, co, length) {
     this.type = type;
     this.p0 = p0;
     this.c1_src = c1;
@@ -762,7 +1052,7 @@ CubicBezierTransition.prototype.pointAt = function (f) {
     return t2DGeometry.cubicBezierTransition(this.p0, this.co, f);
 };
 
-let BezierTransition = function BezierTransition(type, p0, p1, p2, length, f) {
+const BezierTransition = function BezierTransition(type, p0, p1, p2, length) {
     this.type = type;
     this.p0 = p0;
     this.p1_src = p1;
@@ -772,9 +1062,9 @@ let BezierTransition = function BezierTransition(type, p0, p1, p2, length, f) {
 };
 
 BezierTransition.prototype.execute = function (f) {
-    let p0 = this.p0;
-    let p1 = this.p1_src;
-    let p2 = this.p2_src;
+    const p0 = this.p0;
+    const p1 = this.p1_src;
+    const p2 = this.p2_src;
     this.length = this.length_src * f;
     this.cntrl1 = {
         x: p0.x + (p1.x - p0.x) * f,
@@ -796,12 +1086,11 @@ BezierTransition.prototype.pointAt = function (f) {
     return t2DGeometry.bezierTransition(this.p0, this.cntrl1, this.p1, f);
 };
 
-let LinearTransitionBetweenPoints = function LinearTransitionBetweenPoints(
+const LinearTransitionBetweenPoints = function LinearTransitionBetweenPoints(
     type,
     p0,
     p2,
-    length,
-    f
+    length
 ) {
     this.type = type;
     this.p0 = p0;
@@ -812,8 +1101,8 @@ let LinearTransitionBetweenPoints = function LinearTransitionBetweenPoints(
 };
 
 LinearTransitionBetweenPoints.prototype.execute = function (f) {
-    let p0 = this.p0;
-    let p2 = this.p2_src;
+    const p0 = this.p0;
+    const p2 = this.p2_src;
     this.p1 = {
         x: p0.x + (p2.x - p0.x) * f,
         y: p0.y + (p2.y - p0.y) * f,
@@ -829,19 +1118,20 @@ LinearTransitionBetweenPoints.prototype.pointAt = function (f) {
     return t2DGeometry.linearTransitionBetweenPoints(this.p0, this.p1, f);
 };
 
-function animatePathTo(targetConfig) {
+function AnimatePathTo(targetConfig, fromConfig) {
     const self = this;
-    const { duration, ease, end, loop, direction, d } = targetConfig;
-    const src = d || self.attr.d;
+    const { duration, ease, end, loop, direction, attr, delay = 0 } = targetConfig;
+    const src = (fromConfig || self)?.attr?.d ?? (attr.d || "");
     let totalLength = 0;
     self.arrayStack = [];
 
+    if (this.ctx && this.ctx.type_ === "pdf") return;
     if (!src) {
         throw Error("Path Not defined");
     }
 
     const chainInstance = chain.sequenceChain();
-    const newPathInstance = isTypePath(src) ? src : new Path(src);
+    const newPathInstance = CheckPathType(src) ? src : new Path(src);
     const arrExe = newPathInstance.stackGroup.reduce((p, c) => {
         p = p.concat(c);
         return p;
@@ -859,6 +1149,7 @@ function animatePathTo(targetConfig) {
                 },
                 target: self,
                 id: i,
+                delay: 0,
                 render: new LinearTransitionBetweenPoints(
                     arrExe[i].type,
                     arrExe[i].p0,
@@ -878,6 +1169,7 @@ function animatePathTo(targetConfig) {
                 },
                 target: self,
                 id: i,
+                delay: 0,
                 render: new LinearTransitionBetweenPoints(
                     arrExe[i].type,
                     arrExe[i].p0,
@@ -897,6 +1189,7 @@ function animatePathTo(targetConfig) {
                 },
                 target: self,
                 id: i,
+                delay: 0,
                 render: new BezierTransition(
                     arrExe[i].type,
                     arrExe[i].p0,
@@ -924,6 +1217,7 @@ function animatePathTo(targetConfig) {
                 target: self,
                 id: i,
                 co,
+                delay: 0,
                 render: new CubicBezierTransition(
                     arrExe[i].type,
                     arrExe[i].p0,
@@ -945,11 +1239,12 @@ function animatePathTo(targetConfig) {
                         p0: arrExe[i].p0,
                         length: 0,
 
-                        pointAt(f) {
+                        pointAt() {
                             return this.p0;
                         },
                     };
                 },
+                delay: 0,
                 target: self,
                 id: i,
                 length: 0,
@@ -962,9 +1257,9 @@ function animatePathTo(targetConfig) {
 
     mappedArr.forEach(function (d) {
         d.duration = (d.length / totalLength) * duration;
-        // console.log(d.length, d.duration);
     });
     chainInstance
+        .delay(delay)
         .add(mappedArr)
         .ease(ease)
         .loop(loop || 0)
@@ -978,527 +1273,45 @@ function animatePathTo(targetConfig) {
     return this;
 }
 
-function morphTo(targetConfig) {
+function MorphTo(targetConfig) {
     const self = this;
     const { duration } = targetConfig;
     const { ease } = targetConfig;
     const loop = targetConfig.loop ? targetConfig.loop : 0;
     const direction = targetConfig.direction ? targetConfig.direction : "default";
     const destD = targetConfig.attr.d ? targetConfig.attr.d : self.attr.d;
-    let srcPath = isTypePath(self.attr.d)
-        ? self.attr.d.stackGroup
-        : new Path(self.attr.d).stackGroup;
-    let destPath = isTypePath(destD) ? destD.stackGroup : new Path(destD).stackGroup;
-    const chainInstance = [];
-    self.arrayStack = [];
+    const srcPath = CheckPathType(self.attr.d) ? self.attr.d : new Path(self.attr.d);
+    const destPath = CheckPathType(destD) ? destD : new Path(destD);
 
-    if (srcPath.length > 1) {
-        srcPath = srcPath.sort((aa, bb) => bb.segmentLength - aa.segmentLength);
-    }
-
-    if (destPath.length > 1) {
-        destPath = destPath.sort((aa, bb) => bb.segmentLength - aa.segmentLength);
-    }
-
-    const maxGroupLength = srcPath.length > destPath.length ? srcPath.length : destPath.length;
-    mapper(toCubicCurves(srcPath[0]), toCubicCurves(destPath[0]));
-
-    for (let j = 1; j < maxGroupLength; j += 1) {
-        if (srcPath[j]) {
-            mapper(toCubicCurves(srcPath[j]), [
-                {
-                    type: "M",
-                    p0: srcPath[j][0].p0,
-                },
-            ]);
-        }
-
-        if (destPath[j]) {
-            mapper(
-                [
-                    {
-                        type: "M",
-                        p0: destPath[j][0].p0,
-                    },
-                ],
-                toCubicCurves(destPath[j])
-            );
-        }
-    }
-
-    function toCubicCurves(stack) {
-        if (!stack.length) {
-            return;
-        }
-
-        const _ = stack;
-        const mappedArr = [];
-
-        for (let i = 0; i < _.length; i += 1) {
-            if (["M", "C", "S", "Q"].indexOf(_[i].type) !== -1) {
-                mappedArr.push(_[i]);
-            } else if (["V", "H", "L", "Z"].indexOf(_[i].type) !== -1) {
-                const ctrl1 = {
-                    x: (_[i].p0.x + _[i].p1.x) / 2,
-                    y: (_[i].p0.y + _[i].p1.y) / 2,
-                };
-                mappedArr.push({
-                    p0: _[i].p0,
-                    cntrl1: ctrl1,
-                    cntrl2: ctrl1,
-                    p1: _[i].p1,
-                    type: "C",
-                    length: _[i].length,
-                });
-            } else {
-                // console.log('wrong cmd type')
-            }
-        }
-
-        return mappedArr;
-    }
-
-    function buildMTransitionobj(src, dest) {
-        chainInstance.push({
-            run(path, f) {
-                const point = this.pointTansition(f);
-                path.m(true, {
-                    x: point.x,
-                    y: point.y,
-                });
-            },
-
-            pointTansition: t2DGeometry.linearTransitionBetweenPoints.bind(null, src.p0, dest.p0),
-        });
-    }
-
-    function buildTransitionObj(src, dest) {
-        chainInstance.push({
-            run(path, f) {
-                const t = this;
-                const c1 = t.ctrl1Transition(f);
-                const c2 = t.ctrl2Transition(f);
-                const p1 = t.destTransition(f);
-                path.c(
-                    true,
-                    {
-                        x: c1.x,
-                        y: c1.y,
-                    },
-                    {
-                        x: c2.x,
-                        y: c2.y,
-                    },
-                    {
-                        x: p1.x,
-                        y: p1.y,
-                    }
-                );
-            },
-
-            srcTransition: t2DGeometry.linearTransitionBetweenPoints.bind(null, src.p0, dest.p0),
-            ctrl1Transition: t2DGeometry.linearTransitionBetweenPoints.bind(
-                null,
-                src.cntrl1,
-                dest.cntrl1
-            ),
-            ctrl2Transition: t2DGeometry.linearTransitionBetweenPoints.bind(
-                null,
-                src.cntrl2,
-                dest.cntrl2
-            ),
-            destTransition: t2DGeometry.linearTransitionBetweenPoints.bind(null, src.p1, dest.p1),
-        });
-    }
-
-    function normalizeCmds(cmd, n) {
-        if (cmd.length === n) {
-            return cmd;
-        }
-
-        const totalLength = cmd.reduce((pp, cc) => pp + cc.length, 0);
-        const arr = [];
-
-        for (let i = 0; i < cmd.length; i += 1) {
-            const len = cmd[i].length;
-            let counter = Math.floor((n / totalLength) * len);
-
-            if (counter <= 1) {
-                arr.push(cmd[i]);
-            } else {
-                let t = cmd[i];
-                let split;
-
-                while (counter > 1) {
-                    const cmdX = t;
-                    split = splitBezier(
-                        [cmdX.p0, cmdX.cntrl1, cmdX.cntrl2, cmdX.p1].slice(0),
-                        1 / counter
-                    );
-                    arr.push({
-                        p0: cmdX.p0,
-                        cntrl1: split.b1[0],
-                        cntrl2: split.b1[1],
-                        p1: split.b1[2],
-                        type: "C",
-                    });
-                    t = {
-                        p0: split.b1[2],
-                        cntrl1: split.b2[0],
-                        cntrl2: split.b2[1],
-                        p1: split.b2[2],
-                        type: "C",
-                    };
-                    counter -= 1;
-                }
-
-                arr.push(t);
-            }
-        }
-
-        return arr;
-    }
-
-    function splitBezier(arr, perc) {
-        const coll = [];
-        const arrayLocal = arr;
-
-        while (arrayLocal.length > 0) {
-            for (let i = 0; i < arrayLocal.length - 1; i += 1) {
-                coll.unshift(arrayLocal[i]);
-                arrayLocal[i] = interpolate(arrayLocal[i], arrayLocal[i + 1], perc);
-            }
-
-            coll.unshift(arrayLocal.pop());
-        }
-
-        return {
-            b1: [
-                {
-                    x: coll[5].x,
-                    y: coll[5].y,
-                },
-                {
-                    x: coll[2].x,
-                    y: coll[2].y,
-                },
-                {
-                    x: coll[0].x,
-                    y: coll[0].y,
-                },
-            ],
-            b2: [
-                {
-                    x: coll[1].x,
-                    y: coll[1].y,
-                },
-                {
-                    x: coll[3].x,
-                    y: coll[3].y,
-                },
-                {
-                    x: coll[6].x,
-                    y: coll[6].y,
-                },
-            ],
-        };
-    }
-
-    function interpolate(p0, p1, percent) {
-        return {
-            x: p0.x + (p1.x - p0.x) * (percent !== undefined ? percent : 0.5),
-            y: p0.y + (p1.y - p0.y) * (percent !== undefined ? percent : 0.5),
-        };
-    } // function getRightBeginPoint (src, dest) {
-    //   let closestPoint = 0,
-    //     minDistance = 99999999
-    //   for (let i = 0; i < dest.length; i += 1) {
-    //     if (t2DGeometry.getDistance(src[0].p0, dest[i].p0) < minDistance) {
-    //       minDistance = t2DGeometry.getDistance(src[0].p0, dest[i].p0)
-    //       closestPoint = i
-    //     }
-    //   }
-    //   return closestPoint
-    // }
-
-    function getDirection(data) {
-        let dir = 0;
-
-        for (let i = 0; i < data.length; i += 1) {
-            if (data[i].type !== "M") {
-                dir += (data[i].p1.x - data[i].p0.x) * (data[i].p1.y + data[i].p0.y);
-            }
-        }
-
-        return dir;
-    }
-
-    function reverse(data) {
-        const dataLocal = data.reverse();
-        const newArray = [
-            {
-                type: "M",
-                p0: dataLocal[0].p1,
-            },
-        ];
-        dataLocal.forEach((d) => {
-            if (d.type === "C") {
-                const dLocal = d;
-                const tp0 = dLocal.p0;
-                const tc1 = dLocal.cntrl1;
-                dLocal.p0 = d.p1;
-                dLocal.p1 = tp0;
-                dLocal.cntrl1 = d.cntrl2;
-                dLocal.cntrl2 = tc1;
-                newArray.push(dLocal);
-            }
-        });
-        return newArray;
-    }
-
-    function centroid(path) {
-        let sumX = 0;
-        let sumY = 0;
-        let counterX = 0;
-        let counterY = 0;
-        path.forEach((d) => {
-            if (d.p0) {
-                sumX += d.p0.x;
-                sumY += d.p0.y;
-                counterX += 1;
-                counterY += 1;
-            }
-
-            if (d.p1) {
-                sumX += d.p1.x;
-                sumY += d.p1.y;
-                counterX += 1;
-                counterY += 1;
-            }
-        });
-        return {
-            x: sumX / counterX,
-            y: sumY / counterY,
-        };
-    }
-
-    function getQuadrant(centroidP, point) {
-        if (point.x >= centroidP.x && point.y <= centroidP.y) {
-            return 1;
-        } else if (point.x <= centroidP.x && point.y <= centroidP.y) {
-            return 2;
-        } else if (point.x <= centroidP.x && point.y >= centroidP.y) {
-            return 3;
-        }
-
-        return 4;
-    }
-
-    function getSrcBeginPoint(src, dest) {
-        const centroidOfSrc = centroid(src);
-        const centroidOfDest = centroid(dest);
-        const srcArr = src;
-        const destArr = dest;
-
-        for (let i = 0; i < src.length; i += 1) {
-            srcArr[i].quad = getQuadrant(centroidOfSrc, src[i].p0);
-        }
-
-        for (let i = 0; i < dest.length; i += 1) {
-            destArr[i].quad = getQuadrant(centroidOfDest, dest[i].p0);
-        }
-
-        let minDistance = 0;
-        src.forEach((d, i) => {
-            const dis = t2DGeometry.getDistance(d.p0, centroidOfSrc);
-
-            if (d.quad === 1 && dis >= minDistance) {
-                minDistance = dis;
-            }
-        });
-        minDistance = 0;
-        dest.forEach((d, i) => {
-            const dis = t2DGeometry.getDistance(d.p0, centroidOfDest);
-
-            if (d.quad === 1 && dis > minDistance) {
-                minDistance = dis;
-            }
-        });
-        return {
-            src: setStartingPoint(src, 0),
-            // srcStartingIndex
-            dest: setStartingPoint(dest, 0),
-            // destStartingIndex
-            srcCentroid: centroidOfSrc,
-            destCentroid: centroidOfDest,
-        };
-    }
-
-    function setStartingPoint(path, closestPoint) {
-        if (closestPoint <= 0) {
-            return path;
-        }
-
-        let pathLocal = path;
-        const subSet = pathLocal.splice(0, closestPoint);
-        subSet.shift();
-        pathLocal = pathLocal.concat(subSet);
-        pathLocal.unshift({
-            type: "M",
-            p0: pathLocal[0].p0,
-        });
-        pathLocal.push({
-            type: "M",
-            p0: pathLocal[0].p0,
-        });
-        return pathLocal;
-    }
-
-    function mapper(sExe, dExe) {
-        let nsExe;
-        let ndExe;
-        let maxLength = sExe.length > dExe.length ? sExe.length : dExe.length;
-
-        if (dExe.length > 2 && sExe.length > 2) {
-            if (maxLength > 50) {
-                maxLength += 30;
-            } else {
-                maxLength = maxLength >= 20 ? maxLength + 15 : maxLength + 4;
-            }
-
-            nsExe = normalizeCmds(sExe, maxLength);
-            ndExe = normalizeCmds(dExe, maxLength);
-        } else {
-            nsExe = sExe;
-            ndExe = dExe;
-        }
-
-        if (getDirection(nsExe) < 0) {
-            nsExe = reverse(nsExe);
-        }
-
-        if (getDirection(ndExe) < 0) {
-            ndExe = reverse(ndExe);
-        }
-
-        const res = getSrcBeginPoint(nsExe, ndExe, this);
-        nsExe =
-            res.src.length > 1
-                ? res.src
-                : [
-                      {
-                          type: "M",
-                          p0: res.destCentroid,
-                      },
-                  ];
-        ndExe =
-            res.dest.length > 1
-                ? res.dest
-                : [
-                      {
-                          type: "M",
-                          p0: res.srcCentroid,
-                      },
-                  ];
-        const length = ndExe.length < nsExe.length ? nsExe.length : ndExe.length;
-
-        for (let i = 0; i < nsExe.length; i += 1) {
-            nsExe[i].index = i;
-        }
-
-        for (let i = 0; i < ndExe.length; i += 1) {
-            ndExe[i].index = i;
-        }
-
-        for (let i = 0; i < length; i += 1) {
-            const sP0 = nsExe[nsExe.length - 1].p0
-                ? nsExe[nsExe.length - 1].p0
-                : nsExe[nsExe.length - 1].p1;
-            const dP0 = ndExe[ndExe.length - 1].p0
-                ? ndExe[ndExe.length - 1].p0
-                : ndExe[ndExe.length - 1].p1;
-            const sCmd = nsExe[i]
-                ? nsExe[i]
-                : {
-                      type: "C",
-                      p0: sP0,
-                      p1: sP0,
-                      cntrl1: sP0,
-                      cntrl2: sP0,
-                      length: 0,
-                  };
-            const dCmd = ndExe[i]
-                ? ndExe[i]
-                : {
-                      type: "C",
-                      p0: dP0,
-                      p1: dP0,
-                      cntrl1: dP0,
-                      cntrl2: dP0,
-                      length: 0, // ndExe[ndExe.length - 1]
-                  };
-
-            if (sCmd.type === "M" && dCmd.type === "M") {
-                buildMTransitionobj(sCmd, dCmd);
-            } else if (sCmd.type === "M" || dCmd.type === "M") {
-                if (sCmd.type === "M") {
-                    buildTransitionObj(
-                        {
-                            type: "C",
-                            p0: sCmd.p0,
-                            p1: sCmd.p0,
-                            cntrl1: sCmd.p0,
-                            cntrl2: sCmd.p0,
-                            length: 0,
-                        },
-                        dCmd
-                    );
-                } else {
-                    buildTransitionObj(sCmd, {
-                        type: "C",
-                        p0: dCmd.p0,
-                        p1: dCmd.p0,
-                        cntrl1: dCmd.p0,
-                        cntrl2: dCmd.p0,
-                        length: 0,
-                    });
-                }
-            } else {
-                buildTransitionObj(sCmd, dCmd);
-            }
-        }
-    }
+    const morphExe = interpolate(srcPath.fetchPathString(), destPath.fetchPathString(), {
+        maxSegmentLength: 25,
+    });
 
     queueInstance.add(
         animeId(),
         {
             run(f) {
-                let ppath = new Path();
-
-                for (let i = 0, len = chainInstance.length; i < len; i++) {
-                    chainInstance[i].run(ppath, f);
-                }
-
-                self.setAttr("d", ppath);
+                self.setAttr("d", morphExe(f));
             },
             target: self,
             duration: duration,
             loop: loop,
+            delay: 0,
             direction: direction,
         },
         easying(ease)
     );
 }
 
-function isTypePath(pathInstance) {
+function CheckPathType(pathInstance) {
     return pathInstance instanceof Path;
 }
 
-export default {
-    instance: function (d) {
-        return new Path(d);
-    },
-    isTypePath,
-    animatePathTo,
-    morphTo,
-};
+function CreatePath (d) {
+    return new Path(d);
+}
+
+export { CreatePath };
+export { CheckPathType };
+export { AnimatePathTo };
+export { MorphTo };

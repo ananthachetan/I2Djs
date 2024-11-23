@@ -1,22 +1,25 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <label style="position: absolute; color: white;"> Webgl Example </label>
-        <div
-            id="myCanvas"
-            style="height: 100%; width: 100%; position: absolute; background: black;"
-        >
+    <body style="height: 100%">
+        <label style="position: absolute; color: white"> Webgl Example </label>
+        <div id="myCanvas" style="height: 100%; width: 100%; position: absolute; background: black">
             <!--<canvas width="1400" height="1000" id="myCanvas"></canvas>-->
         </div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {webglLayer, queue, color as i2dColor } from "i2djs";
             var height = 820,
                 width = 1430;
-            var renderer_ = i2d.webglLayer(
+            var renderer_ = webglLayer(
                 "#myCanvas",
                 {},
                 {
@@ -30,7 +33,6 @@
                 },
                 bbox: false,
             });
-            var queue = i2d.queue;
             var circlesGrid = [];
             var gridSize = parseInt(Math.sqrt(100000));
             var rad = Math.pow(300, 2);
@@ -65,7 +67,7 @@
                     },
                 },
                 style: {
-                    fill: i2d.color.rgba(255, 255, 255, 255),
+                    fill: i2dColor.rgba(255, 255, 255, 255),
                 },
             });
 
@@ -75,7 +77,7 @@
                 e.preventDefault();
             });
 
-            i2d.queue.onRequestFrame(function (t) {
+            queue.onRequestFrame(function (t) {
                 let d;
                 for (let i = 0, len = points.stack.length; i < len; i++) {
                     d = points.stack[i].dataObj;

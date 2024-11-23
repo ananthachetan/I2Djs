@@ -1,20 +1,19 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
+    <body style="height: 100%">
         <script id="vertexShader" type="x-shader/x-vertex">
-
             attribute vec2 a_vertex;
             void main(void) {
                 gl_Position = vec4(a_vertex, 0.0, 1.0);
             }
         </script>
         <script id="fragmentShader" type="x-shader/x-fragment">
-
             precision highp float;
             uniform float u_k;
+            uniform vec2 u_dim;
 
             const float PI = 3.14159265359;
 
@@ -105,17 +104,23 @@
             }
 
             void main(void) {
-                vec2 z = (gl_FragCoord.xy - 932.0 / 2.0) / 256.0;
+                vec2 z = (gl_FragCoord.xy - u_dim / 2.0) / 256.0;
                 z = complex_sin(complex_pow(z, vec2(5.0, 0.0)) - u_k);
                 float t = complex_phase(z) / PI;
                 gl_FragColor = vec4(cubehelixRainbow(t), 1.0);
             }
         </script>
-        <div id="canvas" style="height: 100%; width: 100%;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
-            var webglRenderer = i2d.webglLayer(
+        <div id="canvas" style="height: 100%; width: 100%"></div>
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {webglLayer, queue } from "i2djs";
+            var webglRenderer = webglLayer(
                 "#canvas",
                 {},
                 { events: false, selectiveClear: false }
@@ -129,17 +134,22 @@
                 size: 2,
             });
             meshGeo.setDrawRange(0, 4);
+
             var shaderRef = webglRenderer.createShaderEl({
-                fragmentShader: document.getElementById("fragmentShader").textContent,
-                vertexShader: document.getElementById("vertexShader").textContent,
+                fragmentShader: document.getElementById("fragmentShader").textContent.trim(),
+                vertexShader: document.getElementById("vertexShader").textContent.trim(),
                 uniforms: {
                     u_k: {
                         value: k,
                     },
+                    u_dim: {
+                        value: Float32Array.of(webglRenderer.width * 2, webglRenderer.height * 2),
+                        size: 2,
+                    }
                 },
                 geometry: meshGeo,
             });
-            i2d.queue.onRequestFrame(function (t) {
+            queue.onRequestFrame(function (t) {
                 shaderRef.setUniformData("u_k", Math.sin(t / 5000) * 5);
             });
         </script>

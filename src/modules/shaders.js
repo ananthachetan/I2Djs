@@ -5,30 +5,25 @@ function shaders(el) {
     switch (el) {
         case "point":
             res = {
-                vertexShader: `
-          precision highp float;
-          attribute vec2 a_position;
-          attribute vec4 a_color;
-          attribute float a_size;
-          
-          uniform vec2 u_resolution;
-          uniform vec2 u_translate;
-          uniform vec2 u_scale;
-          
-          varying vec4 v_color;
-          void main() {
-            vec2 zeroToOne = (u_translate + (u_scale * a_position)) / u_resolution;
-            vec2 clipSpace = ((zeroToOne) * 2.0) - 1.0;
-            gl_Position = vec4((clipSpace * vec2(1.0, -1.0)), 0, 1);
-            gl_PointSize = a_size * u_scale.x;
-            v_color = a_color;
-          }
-          `,
-                fragmentShader: `
-                    precision mediump float;
-                    varying vec4 v_color;
+                vertexShader: `#version 300 es
+                    precision highp float;
+                    in vec2 a_position;
+                    in vec4 a_color;
+                    in float a_size;
+                    in mat3 a_transformMatrix;
+                    out vec4 v_color;
                     void main() {
-                        gl_FragColor = v_color;
+                      gl_Position = vec4(a_transformMatrix * vec3(a_position, 1), 1);
+                      gl_PointSize = a_size;
+                      v_color = a_color;
+                    }
+                    `,
+                fragmentShader: `#version 300 es
+                    precision mediump float;
+                    in vec4 v_color;
+                    out vec4 fragColor;
+                    void main() {
+                        fragColor = v_color;
                     }
                     `,
             };
@@ -36,27 +31,24 @@ function shaders(el) {
 
         case "circle":
             res = {
-                vertexShader: `
-        precision highp float;
-          attribute vec2 a_position;
-          attribute vec4 a_color;
-          attribute float a_radius;
-          uniform vec2 u_resolution;
-          uniform vec2 u_translate;
-          uniform vec2 u_scale;
-          varying vec4 v_color;
-          void main() {
-            vec2 zeroToOne = (u_translate + (u_scale * a_position)) / u_resolution;
-            vec2 zeroToTwo = zeroToOne * 2.0;
-            vec2 clipSpace = zeroToTwo - 1.0;
-            gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-            gl_PointSize = a_radius * u_scale.x;
-            v_color = a_color;
-          }
-          `,
-                fragmentShader: `
+                vertexShader: `#version 300 es
+                    precision highp float;
+                    in vec2 a_position;
+                    in vec4 a_color;
+                    in float a_radius;
+                    in mat3 a_transformMatrix;
+                    out vec4 v_color;
+
+                    void main() {
+                      gl_Position = vec4(a_transformMatrix * vec3(a_position, 1), 1);
+                      gl_PointSize = a_radius; // * a_transform.z * u_transform.z;
+                      v_color = a_color;
+                    }
+                    `,
+                fragmentShader: `#version 300 es
                     precision mediump float;
-                    varying vec4 v_color;
+                    in vec4 v_color;
+                    out vec4 fragColor;
                     void main() {
                       float r = 0.0, delta = 0.0, alpha = 1.0;
                       vec2 cxy = 2.0 * gl_PointCoord - 1.0;
@@ -66,82 +58,85 @@ function shaders(el) {
                       }
                       delta = 0.09;
                       alpha = 1.0 - smoothstep(1.0 - delta, 1.0 + delta, r);
-                      gl_FragColor = v_color * alpha;
+                      fragColor = v_color * alpha;
                     }
                     `,
             };
             break;
 
-        case "ellipse":
-            res = {
-                vertexShader: `
-        precision highp float;
-          attribute vec2 a_position;
-          attribute vec4 a_color;
-          attribute float a_r1;
-          attribute float a_r2;
-          uniform vec2 u_resolution;
-          uniform vec2 u_translate;
-          uniform vec2 u_scale;
-          varying vec4 v_color;
-          varying float v_r1;
-          varying float v_r2;
-          void main() {
-            vec2 zeroToOne = (u_translate + (u_scale * a_position)) / u_resolution;
-            vec2 zeroToTwo = zeroToOne * 2.0;
-            vec2 clipSpace = zeroToTwo - 1.0;
-            gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-            gl_PointSize = max(a_r1, a_r2);
-            v_color = a_color;
-            v_r1 = a_r1;
-            v_r2 = a_r2;
-          }
-          `,
-                fragmentShader: `
-                    precision mediump float;
-                    varying vec4 v_color;
-                    varying float v_r1;
-                    varying float v_r2;
-                    void main() {
-                      float r = 0.0, delta = 0.0, alpha = 1.0;
-                      vec2 cxy = 2.0 * gl_PointCoord - 1.0;
-                      r = ((cxy.x * cxy.x) / (v_r1 * v_r1), (cxy.y * cxy.y) / (v_r2 * v_r2));
-                      if(r > 1.0) {
-                        discard;
-                      }
-                      delta = 0.09;
-                      alpha = 1.0 - smoothstep(1.0 - delta, 1.0 + delta, r);
-                      gl_FragColor = v_color * alpha;
-                    }
-                    `,
-            };
-            break;
+        // case "ellipse":
+        //     res = {
+        //         vertexShader: `
+        //             precision highp float;
+        //               attribute vec2 a_position;
+        //               attribute vec4 a_color;
+        //               attribute float a_r1;
+        //               attribute float a_r2;
+        //               uniform vec2 u_resolution;
+        //               uniform vec4 u_transform;
+        //               attribute vec4 a_transform;
+        //               varying vec4 v_color;
+        //               varying float v_r1;
+        //               varying float v_r2;
+
+        //               void main() {
+        //                 vec2 zeroToOne = (a_transform.xy + u_transform.xy + a_position) / u_resolution;
+        //                 vec2 clipSpace = (zeroToOne * 2.0 - 1.0);
+        //                 gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+        //                 gl_PointSize = max(a_r1, a_r2) * a_transform.z * u_transform.z;
+        //                 v_color = a_color;
+        //                 v_r1 = a_r1;
+        //                 v_r2 = a_r2;
+        //               }
+        //   `,
+        //         fragmentShader: `
+        //             precision mediump float;
+        //             varying vec4 v_color;
+        //             varying float v_r1;
+        //             varying float v_r2;
+        //             void main() {
+        //               float r = 0.0, delta = 0.0, alpha = 1.0;
+        //               vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+        //               r = ((cxy.x * cxy.x) / (v_r1 * v_r1), (cxy.y * cxy.y) / (v_r2 * v_r2));
+        //               if(r > 1.0) {
+        //                 discard;
+        //               }
+        //               delta = 0.09;
+        //               alpha = 1.0 - smoothstep(1.0 - delta, 1.0 + delta, r);
+        //               gl_FragColor = v_color * alpha;
+        //             }
+        //             `,
+        //     };
+        //     break;
 
         case "image":
             res = {
-                vertexShader: `
+                vertexShader: `#version 300 es
                     precision highp float;
-                    attribute vec2 a_position;
-                    attribute vec2 a_texCoord;
-                    uniform vec2 u_resolution;
-                    uniform vec2 u_translate;
-                    uniform vec2 u_scale;
-                    varying vec2 v_texCoord;
+                    in vec2 a_position;
+                    in vec2 a_texCoord;
+                    uniform mat3 u_transformMatrix;
+                    out vec2 v_texCoord;
+
                     void main() {
-                      vec2 zeroToOne = (u_translate + (u_scale * a_position)) / u_resolution;
-                      vec2 clipSpace = zeroToOne * 2.0 - 1.0;
-                      gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+                      gl_Position = vec4(u_transformMatrix * vec3(a_position, 1), 1);
                       v_texCoord = a_texCoord;
                     }
           `,
-                fragmentShader: `
+                fragmentShader: `#version 300 es
                     precision mediump float;
                     uniform sampler2D u_image;
                     uniform float u_opacity;
-                    varying vec2 v_texCoord;
+                    in vec2 v_texCoord;
+                    out vec4 fragColor;
                     void main() {
-                      gl_FragColor = texture2D(u_image, v_texCoord);
-                      gl_FragColor.a *= u_opacity;
+                      vec4 col = texture(u_image, v_texCoord);
+                      if (col.a == 0.0) {
+                        discard;
+                      } else {
+                        fragColor = col;
+                        fragColor.a *= u_opacity;
+                      }
                     }
                     `,
             };
@@ -150,23 +145,71 @@ function shaders(el) {
         case "polyline":
         case "polygon":
             res = {
-                vertexShader: `
+                vertexShader: `#version 300 es
                     precision highp float;
-                    attribute vec2 a_position;
-                    uniform vec2 u_resolution;
-                    uniform vec2 u_translate;
-                    uniform vec2 u_scale;
+                    in vec2 a_position;
+                    uniform mat3 u_transformMatrix;
+
                     void main() {
-                    vec2 zeroToOne = (u_translate + (u_scale * a_position)) / u_resolution;
-                    vec2 clipSpace = zeroToOne * 2.0 - 1.0;
-                    gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+                      gl_Position = vec4(u_transformMatrix * vec3(a_position, 1), 1);
                     }
                     `,
-                fragmentShader: `
+                fragmentShader: `#version 300 es
                     precision mediump float;
                     uniform vec4 u_color;
+                    out vec4 fragColor;
                     void main() {
-                        gl_FragColor = u_color;
+                        fragColor = u_color;
+                    }
+                    `,
+            };
+            break;
+
+        case "rect":
+            res = {
+                vertexShader: `#version 300 es
+                    precision highp float;
+                    in vec2 a_position;
+                    in vec4 a_color;
+                    in mat3 a_transformMatrix;
+                    out vec4 v_color;
+
+                    void main() {
+                      gl_Position = vec4(a_transformMatrix * vec3(a_position, 1), 1);
+                      v_color = a_color;
+                    }
+                    `,
+                fragmentShader: `#version 300 es
+                    precision mediump float;
+                    in vec4 v_color;
+                    out vec4 fragColor;
+                    void main() {
+                      fragColor = v_color;
+                    }
+                    `,
+            };
+            break;
+
+        case "line":
+            res = {
+                vertexShader: `#version 300 es
+                    precision highp float;
+                    in vec2 a_position;
+                    in vec4 a_color;
+                    in mat3 a_transformMatrix;
+                    out vec4 v_color;
+
+                    void main() {
+                      gl_Position = vec4(a_transformMatrix * vec3(a_position, 1), 1);
+                      v_color = a_color;
+                    }
+                    `,
+                fragmentShader: `#version 300 es
+                    precision mediump float;
+                    in vec4 v_color;
+                    out vec4 fragColor;
+                    void main() {
+                        fragColor = v_color;
                     }
                     `,
             };
@@ -174,26 +217,24 @@ function shaders(el) {
 
         default:
             res = {
-                vertexShader: `
+                vertexShader: `#version 300 es
                     precision highp float;
-                    attribute vec2 a_position;
-                    attribute vec4 a_color;
-                    uniform vec2 u_resolution;
-                    uniform vec2 u_translate;
-                    uniform vec2 u_scale;
-                    varying vec4 v_color;
+                    in vec2 a_position;
+                    in vec4 a_color;
+                    in mat3 a_transformMatrix;
+                    out vec4 v_color;
+
                     void main() {
-                    vec2 zeroToOne = (u_translate + (u_scale * a_position)) / u_resolution;
-                    vec2 clipSpace = zeroToOne * 2.0 - 1.0;
-                    gl_Position = vec4(clipSpace * vec2(1.0, -1.0), 0, 1);
-                    v_color = a_color;
+                      gl_Position = vec4(a_transformMatrix * vec3(a_position, 1), 1);
+                      v_color = a_color;
                     }
                     `,
-                fragmentShader: `
+                fragmentShader: `#version 300 es
                     precision mediump float;
-                    varying vec4 v_color;
+                    in vec4 v_color;
+                    out vec4 fragColor;
                     void main() {
-                        gl_FragColor = v_color;
+                      fragColor = v_color;
                     }
                     `,
             };

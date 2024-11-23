@@ -25,7 +25,7 @@ window.requestAnimationFrame = (function requestAnimationFrameG() {
         window.mozRequestAnimationFrame ||
         window.oRequestAnimationFrame ||
         window.msRequestAnimationFrame ||
-        function requestAnimationFrame(callback, element) {
+        function requestAnimationFrame(callback) {
             return window.setTimeout(callback, 1000 / 60);
         }
     );
@@ -69,10 +69,7 @@ Tween.prototype.execute = function execute(f) {
 Tween.prototype.resetCallBack = function resetCallBack(_) {
     if (typeof _ !== "function") return;
     this.callBack = _;
-}; // function endExe (_) {
-//   this.endExe = _
-//   return this
-// }
+};
 
 function onRequestFrame(_) {
     if (typeof _ !== "function") {
@@ -91,7 +88,7 @@ function removeRequestFrameCall(_) {
         throw new Error("Wrong input");
     }
 
-    let index = onFrameExe.indexOf(_);
+    const index = onFrameExe.indexOf(_);
 
     if (index !== -1) {
         onFrameExe.splice(index, 1);
@@ -99,20 +96,14 @@ function removeRequestFrameCall(_) {
 }
 
 function add(uId, executable, easying) {
-    let exeObj = new Tween(uId, executable, easying);
+    const exeObj = new Tween(uId, executable, easying);
     exeObj.currTime = performance.now();
-    if (executable.target) {
-        if (!executable.target.animList) {
-            executable.target.animList = [];
-        }
-        executable.target.animList[executable.target.animList.length] = exeObj;
-    }
-    tweens[tweens.length] = exeObj;
+    tweens.push(exeObj);
     this.startAnimeFrames();
 }
 
 function remove(exeObj) {
-    let index = tweens.indexOf(exeObj);
+    const index = tweens.indexOf(exeObj);
     if (index !== -1) {
         tweens.splice(index, 1);
     }
@@ -148,8 +139,14 @@ ExeQueue.prototype = {
     },
 };
 
+ExeQueue.prototype.interruptNodeAnimations = function (node) {
+    tweens = tweens.filter((d)=>{
+        return (d?.executable?.target??null) !== node;
+    });
+}
+
 ExeQueue.prototype.addVdom = function AaddVdom(_) {
-    let ind = vDomIds.length + 1;
+    const ind = vDomIds.length + 1;
     vDoms[ind] = _;
     vDomIds.push(ind);
     this.startAnimeFrames();
@@ -157,13 +154,20 @@ ExeQueue.prototype.addVdom = function AaddVdom(_) {
 };
 
 ExeQueue.prototype.removeVdom = function removeVdom(_) {
-    let index = vDomIds.indexOf(_);
+    const index = vDomIds.indexOf(_);
+
+    // filter remove tweens
+    tweens = tweens.filter((d)=>{
+        return (d?.executable?.target?.vDomIndex??null) !== _;
+    });
 
     if (index !== -1) {
         vDomIds.splice(index, 1);
         vDoms[_].root.destroy();
         delete vDoms[_];
     }
+
+
 
     if (vDomIds.length === 0 && tweens.length === 0 && onFrameExe.length === 0) {
         this.stopAnimeFrame();
@@ -175,11 +179,11 @@ ExeQueue.prototype.vDomChanged = function AvDomChanged(vDom) {
         vDoms[vDom].stateModified = true;
         vDoms[vDom].root.stateModified = true;
     } else if (typeof vDom === "string") {
-        let ids = vDom.split(":");
+        const ids = vDom.split(":");
         if (vDoms[ids[0]] && vDoms[ids[0]].stateModified !== undefined) {
             vDoms[ids[0]].stateModified = true;
             vDoms[ids[0]].root.stateModified = true;
-            let childRootNode = vDoms[ids[0]].root.fetchEl("#" + ids[1]);
+            const childRootNode = vDoms[ids[0]].root.fetchEl("#" + ids[1]);
             if (childRootNode) {
                 childRootNode.stateModified = true;
             }
@@ -193,33 +197,28 @@ ExeQueue.prototype.execute = function Aexecute() {
 
 ExeQueue.prototype.vDomUpdates = function () {
     for (let i = 0, len = vDomIds.length; i < len; i += 1) {
-        if (vDomIds[i] && vDoms[vDomIds[i]] && vDoms[vDomIds[i]].stateModified) {
-            vDoms[vDomIds[i]].execute();
-            vDoms[vDomIds[i]].stateModified = false;
-            // vDoms[vDomIds[i]].onchange();
-        } else if (
-            vDomIds[i] &&
-            vDoms[vDomIds[i]] &&
-            vDoms[vDomIds[i]].root &&
-            vDoms[vDomIds[i]].root.ENV !== "NODE"
-        ) {
-            var elementExists = document.getElementById(vDoms[vDomIds[i]].root.container.id);
+        const vdomId = vDomIds[i];
+        const vdom = vDoms[vdomId];
+        if (!vdom) {
+            continue;
+        }
 
-            if (!elementExists) {
-                this.removeVdom(vDomIds[i]);
-            }
+        if (vdom.stateModified) {
+            vdom.execute();
+            vdom.stateModified = false;
         }
     }
 };
 
 let d;
 let t;
-let abs = Math.abs;
+const abs = Math.abs;
 let counter = 0;
 let tweensN = [];
 
 function exeFrameCaller() {
     try {
+
         tweensN = [];
         counter = 0;
         t = performance.now();
@@ -233,7 +232,9 @@ function exeFrameCaller() {
                 d.execute(abs(d.factor - d.easying(d.lastTime, d.duration)));
                 tweensN[counter++] = d;
             } else if (d.lastTime > d.duration) {
-                loopCheck(d);
+                if (loopCheck(d)) {
+                    tweensN[counter++] = d;
+                }
             } else {
                 tweensN[counter++] = d;
             }
@@ -242,10 +243,11 @@ function exeFrameCaller() {
         tweens = tweensN;
 
         if (onFrameExe.length > 0) {
-            onFrameExeFun();
+            onFrameExeFun(t);
         }
 
         animatorInstance.vDomUpdates();
+
     } catch (err) {
         console.error(err);
     } finally {
@@ -259,37 +261,23 @@ function loopCheck(d) {
         if (d.end) {
             d.end();
         }
-        if (d.executable.target) {
-            let animList = d.executable.target.animList;
-            if (animList && animList.length > 0) {
-                if (animList.length === 1) {
-                    d.executable.target.animList = [];
-                } else if (animList.length > 1) {
-                    let index = animList.indexOf(d);
-                    if (index !== -1) {
-                        animList.splice(index, 1);
-                    }
-                }
-            }
+        const animList = d.executable?.target?.animList;
+        if (animList) {
+            const index = animList.indexOf(d);
+            if (index !== -1) animList.splice(index, 1);
         }
+        return false
     } else {
         d.loopTracker += 1;
         d.lastTime = d.lastTime - d.duration;
-
-        if (d.direction === "alternate") {
-            d.factor = 1 - d.factor;
-        } else if (d.direction === "reverse") {
-            d.factor = 1;
-        } else {
-            d.factor = 0;
-        }
-
+        d.lastTime = d.lastTime % d.duration;
+        d.factor = d.direction === "alternate"? (1 - d.factor) : (d.direction === "reverse" ? 1 : 0);
         d.execute(abs(d.factor - d.easying(d.lastTime, d.duration)));
-        tweensN[counter++] = d;
+        return true;
     }
 }
 
-function onFrameExeFun() {
+function onFrameExeFun(t) {
     for (let i = 0; i < onFrameExe.length; i += 1) {
         onFrameExe[i](t);
     }
@@ -297,7 +285,9 @@ function onFrameExeFun() {
 
 animatorInstance = new ExeQueue();
 
-export default animatorInstance; // default function animateQueue () {
-//   if (!animatorInstance) { animatorInstance = new ExeQueue() }
-//   return animatorInstance
-// }
+export default animatorInstance;
+
+// export default function animateQueue () {
+//    if (!animatorInstance) { animatorInstance = new ExeQueue() }
+//    return animatorInstance
+//  }

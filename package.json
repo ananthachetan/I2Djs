@@ -1,9 +1,10 @@
 {
   "name": "i2djs",
-  "version": "3.1.0",
+  "version": "5.3.0",
   "description": "Integrated-2d, framework for 2D graphics rendering for SVG/Canvas/WebGl context",
-  "module": "./src/main.js",
-  "main": "./dist/i2d.js",
+  "type": "module",
+  "module": "./dist/i2d.esm.js",
+  "main": "./dist/i2d.cjs",
   "sideEffects": false,
   "directories": {
     "example": "examples"
@@ -21,22 +22,24 @@
   "files": [
     "dist",
     "src",
-    "examples/canvas",
-    "examples/data",
-    "examples/svg",
-    "examples/webGL"
+    "README.md",
+    "LICENSE",
+    "package.json"
   ],
   "keywords": [
+    "i2d",
+    "i2djs",
+    "javascript",
     "SVG",
-    "Canvas",
+    "canvas",
+    "webgl",
+    "pdf",
     "DataJoin",
     "Data Visualization",
-    "Gaming",
     "Visualization",
-    "2D Graphics",
+    "2d",
     "Graphics",
     "Animation",
-    "Virtual Dom",
     "Bitmap",
     "Scalable Vector Graphics",
     "pixel",
@@ -48,43 +51,47 @@
   "bugs": {
     "url": "https://github.com/i2djs/I2D/issues"
   },
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "homepage": "https://github.com/i2djs/I2D#readme",
+  "resolutions": {},
   "devDependencies": {
-    "@rollup/plugin-buble": "^0.21.3",
-    "eslint": "^6.5.1",
-    "eslint-config-mourner": "^3.0.0",
-    "eslint-config-prettier": "^6.11.0",
-    "eslint-config-standard": "^12.0.0",
-    "eslint-plugin-import": "^2.21.2",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^3.1.3",
-    "eslint-plugin-promise": "^4.2.1",
-    "eslint-plugin-standard": "^4.0.1",
-    "husky": "^4.2.5",
-    "lint-staged": "^10.2.10",
-    "prettier": "2.0.5",
-    "rollup": "^1.17.0",
-    "rollup-plugin-commonjs": "^10.0.1",
-    "rollup-plugin-eslint": "^7.0.0",
-    "rollup-plugin-node-resolve": "^5.2.0",
-    "rollup-plugin-terser": "^5.1.3",
-    "rollup-plugin-uglify": "^6.0.4"
+    "@juggle/resize-observer": "^3.4.0",
+    "@rollup/plugin-alias": "^5.1.0",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-eslint": "^9.0.5",
+    "@rollup/plugin-inject": "^5.0.5",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^5.0.5",
+    "@rollup/plugin-terser": "^0.4.4",
+    "assert": "^2.1.0",
+    "blob-stream-i2d": "^1.1.2",
+    "browserify-zlib": "^0.2.0",
+    "buffer": "6.0.3",
+    "earcut": "^2.2.4",
+    "eslint": "^8.57.0",
+    "events": "^3.3.0",
+    "flubber": "^0.4.2",
+    "pdfkit": "^0.14.0",
+    "process": "^0.11.10",
+    "rollup": "^4.12.0",
+    "rollup-plugin-cleanup": "^3.2.1",
+    "rollup-plugin-polyfill-node": "^0.13.0",
+    "stackblur-canvas": "^2.6.0",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5"
   },
-  "dependencies": {
-    "earcut": "^2.2.2"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
-  "lint-staged": {
-    "*.{js}": [
-      "prettier --write",
-      "eslint --cache --fix"
+  "jspm": {
+    "files": [
+      "package.json",
+      "LICENSE",
+      "README.md",
+      "dist/i2d.cjs",
+      "dist/i2d.esm.js",
+      "dist/i2d.esm.js",
+      "dist/dependencies-bundle-esm.js"
     ],
-    "*.{html,css,md}": [
-      "prettier --write"
-    ]
+    "directories": {}
   }
 }

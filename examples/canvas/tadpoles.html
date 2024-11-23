@@ -1,19 +1,25 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <label style="position: absolute; color: white;"> Canvas Example </label>
+    <body style="height: 100%">
+        <label style="position: absolute; color: white"> Canvas Example </label>
         <div
             id="myCanvas"
-            style="position: absolute; height: 100%; width: 100%; background: black;"
+            style="position: absolute; height: 100%; width: 100%; background: black"
         ></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
-            var renderer_ = i2d.canvasLayer("#myCanvas", {}, { enableEvents: false });
-            const n = 500;
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import { canvasLayer, color as i2dColor, queue as i2dQueue  } from "i2djs";
+            var renderer_ = canvasLayer("#myCanvas", {}, { enableEvents: false });
+            const n = 1000;
             const v = 2;
             const m = 12;
             let height = renderer_.height;
@@ -26,19 +32,7 @@
                 count: 0,
             }));
 
-            var ellipseGroup = renderer_
-                .createEl({
-                    el: "group",
-                    bbox: false,
-                    style: {
-                        fillStyle: "white",
-                    },
-                })
-                .createEls(tadpoles, {
-                    el: "ellipse",
-                    attr: { cx: 0, cy: 0, rx: 6.5, ry: 4 },
-                    bbox: false,
-                });
+            
             var tailsGroup = renderer_
                 .createEl({
                     el: "group",
@@ -67,7 +61,31 @@
                 });
             });
 
-            i2d.queue.onRequestFrame(function (t) {
+            var ellipseGroup = renderer_
+                .createEl({
+                    el: "group",
+                    bbox: false,
+                    style: {
+                        // fillStyle: "white",
+                    },
+                })
+                .createEls(tadpoles, {
+                    el: "ellipse",
+                    attr: { cx: 0, cy: 0, rx: 6.5, ry: 4 },
+                    style: {
+                        fillStyle: function (d) {
+                            return i2dColor.rgba(
+                                parseInt(Math.random() * 255),
+                                parseInt(Math.random() * 255),
+                                parseInt(Math.random() * 255),
+                                255
+                            );
+                        }
+                    },
+                    bbox: false,
+                });
+
+            i2dQueue.onRequestFrame(function (t) {
                 var time = new Date();
                 ellipseGroup.forEach(function (t) {
                     let dx = t.vx;

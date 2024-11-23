@@ -1,20 +1,24 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%; background: black;">
-        <label style="position: absolute; color: white;"> Canvas Example </label>
-        <div id="myCanvas" style="height: 100%; width: 100%;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
+    <body style="height: 100%; background: black">
+        <label style="position: absolute; color: white"> Canvas Example </label>
+        <div id="myCanvas" style="height: 100%; width: 100%"></div>
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import { canvasLayer, path as i2dPath } from "i2djs";
 
-        <script type="text/javascript">
-            render();
-
-            function render() {
                 var height = 820,
                     width = 1430;
-                var renderer = i2d.canvasLayer("#myCanvas", {}, {});
+                var renderer = canvasLayer("#myCanvas", {}, {});
                 var g = renderer.createEl({
                     el: "group",
                 });
@@ -26,9 +30,9 @@
                     x2: 0,
                     y2: 100,
                     colorStops: [
-                        { color: "white", value: 10 },
-                        { color: "rgb(255, 0, 0)", value: 50 },
-                        { color: "yellow", value: 90 },
+                        { color: "white", offset: 10 },
+                        { color: "rgb(255, 0, 0)", offset: 50 },
+                        { color: "yellow", offset: 90 },
                     ],
                 });
 
@@ -36,8 +40,8 @@
                     innerCircle: { x: 50, y: 50, r: 0 },
                     outerCircle: { x: 50, y: 50, r: 50 },
                     colorStops: [
-                        { color: "rgb(255, 0, 0)", value: 0 },
-                        { color: "white", value: 90 },
+                        { color: "rgb(255, 0, 0)", offset: 0 },
+                        { color: "white", offset: 90 },
                     ],
                 });
                 var sparkles = [];
@@ -47,8 +51,7 @@
                     var r = random(50, 450);
                     var tx = r * Math.cos(angle);
                     var ty = r * Math.sin(angle);
-                    var pathInstance = i2d
-                        .Path()
+                    var pathInstance = i2dPath()
                         .m(false, { x: 700, y: 350 })
                         .q(false, { x: tx * 0.6, y: (ty - 350) * 0.6 }, { x: tx, y: ty });
                     // console.log("m"+x+','+y+' q'+(tx*0.6)+','+((ty-y)*0.6) +' '+tx+','+ty)
@@ -103,11 +106,20 @@
                             });
 
                             sparkclesNodes.animatePathTo({
-                                duration: 1000,
+                                duration: function (d, i) {
+                                        return 1000 + Math.random() * 1000;
+                                    },
                                 ease: "easeInCubic",
-                                d: function (d) {
-                                    return d.d;
+                                attr: {
+                                    d: function (d) {
+                                        return d.d;
+                                    }
                                 },
+                                end: function (d, i) {
+                                    return function() {
+                                        this.remove();
+                                    }
+                                }
                             });
                         },
                     });
@@ -116,7 +128,6 @@
                     var num = Math.floor(Math.random() * (max - min)) + min;
                     return num;
                 }
-            }
         </script>
     </body>
 </html>

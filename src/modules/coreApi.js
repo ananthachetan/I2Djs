@@ -4,26 +4,29 @@ import geometry from "./geometry.js";
 import queue from "./queue.js";
 import ease from "./ease.js";
 import colorMap from "./colorMap.js";
+import { ResizeObserver as resizePolyfill } from "@juggle/resize-observer";
+import { canvasStyleMapper, svgStyleMapper } from "./constants.js";
 
 let animeIdentifier = 0;
 const t2DGeometry = geometry;
 const easing = ease;
 const queueInstance = queue;
-
+const ResizeObserver = window.ResizeObserver || resizePolyfill;
+// const ResizeObserver = function () {};
 function animeId() {
     animeIdentifier += 1;
     return animeIdentifier;
 }
 
-let transitionSetAttr = function transitionSetAttr(self, key, value) {
+const transitionSetAttr = function transitionSetAttr(self, key, value) {
     return function inner(f) {
-        self.setAttr(key, value.call(self, f));
+        self.attr[key] = value.call(self, f);
+        // self.setAttr(key, value.call(self, f));
     };
 };
 
-let transformTransition = function transformTransition(self, subkey, value) {
+const transformTransition = function transformTransition(self, subkey, srcVal, value) {
     const exe = [];
-    const trans = self.attr.transform;
 
     if (typeof value === "function") {
         return function inner(f) {
@@ -34,9 +37,9 @@ let transformTransition = function transformTransition(self, subkey, value) {
     value.forEach((tV, i) => {
         let val;
 
-        if (trans[subkey]) {
-            if (trans[subkey][i] !== undefined) {
-                val = trans[subkey][i];
+        if (srcVal) {
+            if (srcVal[i] !== undefined) {
+                val = srcVal[i];
             } else {
                 val = subkey === "scale" ? 1 : 0;
             }
@@ -51,35 +54,32 @@ let transformTransition = function transformTransition(self, subkey, value) {
     };
 };
 
-let attrTransition = function attrTransition(self, key, value) {
-    let srcVal = self.attr[key]; // if (typeof value === 'function') {
-    //   return function setAttr_ (f) {
-    //     self.setAttr(key, value.call(self, f))
-    //   }
-    // }
-
+const attrTransition = function attrTransition(self, key, srcVal, tgtVal) {
     return function setAttr_(f) {
-        self.setAttr(key, t2DGeometry.intermediateValue(srcVal, value, f));
+        self.attr[key] = t2DGeometry.intermediateValue(srcVal, tgtVal, f);
+        // self.setAttr(key, t2DGeometry.intermediateValue(srcVal, tgtVal, f));
     };
 };
 
-let styleTransition = function styleTransition(self, key, value) {
+const styleTransition = function styleTransition(self, key, sVal, value) {
     let srcValue;
     let destUnit;
     let destValue;
 
     if (typeof value === "function") {
         return function inner(f) {
-            self.setStyle(key, value.call(self, self.dataObj, f));
+            self.style[key] = value.call(self, self.dataObj, f);
+            // self.setStyle(key, value.call(self, self.dataObj, f));
         };
     } else {
-        srcValue = self.style[key];
+        srcValue = sVal;
 
         if (isNaN(value)) {
             if (colorMap.isTypeColor(value)) {
                 const colorExe = colorMap.transition(srcValue, value);
                 return function inner(f) {
-                    self.setStyle(key, colorExe(f));
+                    self.style[key] = colorExe(f);
+                    // self.setStyle(key, colorExe(f));
                 };
             }
 
@@ -90,49 +90,74 @@ let styleTransition = function styleTransition(self, key, value) {
             destValue = parseInt(destValue.length > 0 ? destValue[0] : 0, 10);
             destUnit = destUnit.length > 0 ? destUnit[0] : "px";
         } else {
-            srcValue = self.style[key] !== undefined ? self.style[key] : 1;
+            srcValue = sVal !== undefined ? sVal : 1;
             destValue = value;
             destUnit = 0;
         }
 
         return function inner(f) {
-            self.setStyle(key, t2DGeometry.intermediateValue(srcValue, destValue, f) + destUnit);
+            self.style[key] = t2DGeometry.intermediateValue(srcValue, destValue, f) + destUnit;
+            // self.setStyle(key, t2DGeometry.intermediateValue(srcValue, destValue, f) + destUnit);
         };
     }
 };
 
-const animate = function animate(self, targetConfig) {
-    const tattr = targetConfig.attr ? targetConfig.attr : {};
-    const tstyles = targetConfig.style ? targetConfig.style : {};
+function resolveStyle(style, styleMapper) {
+    let resolvedStyle = {};
+    let val = null;
+    for(let st in style) {
+        val = style[st];
+        st = styleMapper[st] || st;
+        resolvedStyle[st] = val;
+    }
+    return resolvedStyle;
+}
+
+const animate = function animate(self, fromConfig, targetConfig) {
+    const tattr = targetConfig.attr || {};
+    let tstyles = targetConfig.style || {};
+    const sattr = fromConfig.attr || {};
+    let sstyles = fromConfig.style || {};
     const runStack = [];
-    let value;
+    const styleMapper = ['WEBGL', 'canvas'].includes(self.nodeType) ? canvasStyleMapper : svgStyleMapper;
+
+    sstyles = resolveStyle(sstyles, styleMapper);
+    tstyles = resolveStyle(tstyles, styleMapper);
 
     if (typeof tattr !== "function") {
-        for (let key in tattr) {
+        for (const key in tattr) {
             if (key !== "transform") {
-                let value = tattr[key];
+                const value = tattr[key];
 
                 if (typeof value === "function") {
                     runStack[runStack.length] = function setAttr_(f) {
-                        self.setAttr(key, value.call(self, f));
+                        self.attr[key] = value.call(self, f);
+                        // self.setAttr(key, value.call(self, f));
                     };
                 } else {
                     if (key === "d") {
                         self.morphTo(targetConfig);
+                    } else if (key === "points") {
+                        console.log("write points mapper");
                     } else {
-                        runStack[runStack.length] = attrTransition(self, key, tattr[key]);
+                        runStack[runStack.length] = attrTransition(
+                            self,
+                            key,
+                            sattr[key],
+                            tattr[key]
+                        );
                     }
                 }
             } else {
-                value = tattr[key];
-
+                const value = tattr[key];
                 if (typeof value === "function") {
                     runStack[runStack.length] = transitionSetAttr(self, key, value);
                 } else {
-                    const trans = self.attr.transform;
+                    let trans = sattr.transform;
 
                     if (!trans) {
-                        self.attr.transform = {};
+                        self.setAttr("transform", {});
+                        trans = {};
                     }
 
                     const subTrnsKeys = Object.keys(tattr.transform);
@@ -141,6 +166,7 @@ const animate = function animate(self, targetConfig) {
                         runStack[runStack.length] = transformTransition(
                             self,
                             subTrnsKeys[j],
+                            trans[subTrnsKeys[j]],
                             tattr.transform[subTrnsKeys[j]]
                         );
                     }
@@ -153,7 +179,13 @@ const animate = function animate(self, targetConfig) {
 
     if (typeof tstyles !== "function") {
         for (let style in tstyles) {
-            runStack[runStack.length] = styleTransition(self, style, tstyles[style]);
+            // style = styleMapper[style] || style;
+            runStack[runStack.length] = styleTransition(
+                self,
+                style,
+                sstyles[style],
+                tstyles[style]
+            );
         }
     } else {
         runStack[runStack.length] = tstyles.bind(self);
@@ -166,12 +198,12 @@ const animate = function animate(self, targetConfig) {
             }
         },
         target: self,
-        duration: targetConfig.duration,
-        delay: targetConfig.delay ? targetConfig.delay : 0,
+        duration: targetConfig.duration || 0,
+        delay: targetConfig.delay || 0,
         end: targetConfig.end ? targetConfig.end.bind(self, self.dataObj) : null,
-        loop: targetConfig.loop ? targetConfig.loop : 0,
-        direction: targetConfig.direction ? targetConfig.direction : "default",
-        ease: targetConfig.ease ? targetConfig.ease : "default",
+        loop: targetConfig.loop || 0,
+        direction: targetConfig.direction || "default",
+        ease: targetConfig.ease || "default",
     };
 };
 
@@ -209,7 +241,7 @@ function performJoin(data, nodes, cond) {
     return res;
 }
 
-let CompositeArray = {};
+const CompositeArray = {};
 CompositeArray.push = {
     value: function (data) {
         if (Object.prototype.toString.call(data) !== "[object Array]") {
@@ -221,7 +253,7 @@ CompositeArray.push = {
         }
 
         if (this.config.action.enter) {
-            let nodes = {};
+            const nodes = {};
             this.selector.split(",").forEach(function (d) {
                 nodes[d] = data;
             });
@@ -234,11 +266,11 @@ CompositeArray.push = {
 };
 CompositeArray.pop = {
     value: function () {
-        let self = this;
-        let elData = this.data.pop();
+        const self = this;
+        const elData = this.data.pop();
 
         if (this.config.action.exit) {
-            let nodes = {};
+            const nodes = {};
             this.selector.split(",").forEach(function (d) {
                 nodes[d] = self.fetchEls(d, [elData]);
             });
@@ -255,7 +287,7 @@ CompositeArray.remove = {
             data = [data];
         }
 
-        let self = this;
+        const self = this;
 
         for (let i = 0, len = data.length; i < len; i++) {
             if (this.data.indexOf(data[i]) !== -1) {
@@ -264,7 +296,7 @@ CompositeArray.remove = {
         }
 
         if (this.config.action.exit) {
-            let nodes = {};
+            const nodes = {};
             this.selector.split(",").forEach(function (d) {
                 nodes[d] = self.fetchEls(d, data);
             });
@@ -277,10 +309,10 @@ CompositeArray.remove = {
 };
 CompositeArray.update = {
     value: function () {
-        let self = this;
+        const self = this;
 
         if (this.config.action.update) {
-            let nodes = {};
+            const nodes = {};
             this.selector.split(",").forEach(function (d) {
                 nodes[d] = self.fetchEls(d, self.data);
             });
@@ -320,113 +352,68 @@ NodePrototype.prototype.exec = function Cexe(exe) {
     return this;
 };
 
-NodePrototype.prototype.fetchEls = function (nodeSelector, dataArray) {
+NodePrototype.prototype.fetchEls = function fetchEls (nodeSelector, dataArray) {
+
     const nodes = [];
     const wrap = new CollectionPrototype();
+    const selectorType = nodeSelector.charAt(0);
+    const token = ['.', '#'].includes(selectorType) ? nodeSelector.substring(1) : nodeSelector;
 
-    if (this.children.length > 0) {
-        if (nodeSelector.charAt(0) === ".") {
-            const classToken = nodeSelector.substring(1, nodeSelector.length);
-            this.children.forEach((d) => {
-                let check1 =
-                    dataArray &&
-                    d.dataObj &&
-                    dataArray.indexOf(d.dataObj) !== -1 &&
-                    d.attr.class === classToken;
-                let check2 = !dataArray && d.attr.class === classToken;
+    const isMatch = (node, compareToken) => {
+        if (!node) return false;
 
-                if (check1 || check2) {
-                    nodes.push(d);
-                }
-            });
-        } else if (nodeSelector.charAt(0) === "#") {
-            const idToken = nodeSelector.substring(1, nodeSelector.length);
-            this.children.every((d) => {
-                let check1 =
-                    dataArray &&
-                    d.dataObj &&
-                    dataArray.indexOf(d.dataObj) !== -1 &&
-                    d.attr.id === idToken;
-                let check2 = !dataArray && d.attr.id === idToken;
+        const attrValue = selectorType === '.' ? node.attr?.class :
+                          selectorType === '#' ? node.attr?.id :
+                          node.nodeName;
+        const isInDataArray = dataArray ? dataArray.includes(node.dataObj) : true;
 
-                if (check1 || check2) {
-                    nodes.push(d);
-                    return false;
-                }
+        return isInDataArray && attrValue === compareToken;
+    };
 
-                return true;
-            });
-        } else {
-            nodeSelector = nodeSelector === "group" ? "g" : nodeSelector;
-            this.children.forEach((d) => {
-                let check1 =
-                    dataArray &&
-                    d.dataObj &&
-                    dataArray.indexOf(d.dataObj) !== -1 &&
-                    d.nodeName === nodeSelector;
-                let check2 = !dataArray && d.nodeName === nodeSelector;
-
-                if (check1 || check2) {
-                    nodes.push(d);
-                }
-            });
+    for (let i = 0; i < this.children.length; i++) {
+        const node = this.children[i];
+        if (isMatch(node, token)) {
+            nodes.push(node);
         }
     }
 
     return wrap.wrapper(nodes);
 };
 
-NodePrototype.prototype.fetchEl = function (nodeSelector, data) {
-    let nodes;
+NodePrototype.prototype.fetchEl = function fetchEl(nodeSelector, data) {
+    let matchedNode = null;
 
-    if (this.children.length > 0) {
-        if (nodeSelector.charAt(0) === ".") {
-            const classToken = nodeSelector.substring(1, nodeSelector.length);
-            this.children.every((d) => {
-                let check1 = data && d.dataObj && data === d.dataObj && d.attr.class === classToken;
-                let check2 = !data && d.attr.class === classToken;
+    const selectorType = nodeSelector.charAt(0);
+    const token = ['.', '#'].includes(selectorType) ? nodeSelector.substring(1) : nodeSelector
 
-                if (check1 || check2) {
-                    nodes = d;
-                    return false;
-                }
+    const isMatch = (node, compareToken) => {
+        if (!node) return false;
+        const nodeAttr = node.attr || {};
+        const compareAgainst = selectorType === '.' ? nodeAttr['class'] : 
+                               selectorType === '#' ? nodeAttr['id'] : 
+                               node.nodeName;
 
-                return true;
-            });
-        } else if (nodeSelector.charAt(0) === "#") {
-            const idToken = nodeSelector.substring(1, nodeSelector.length);
-            this.children.every((d) => {
-                let check1 = data && d.dataObj && data === d.dataObj && d.attr.id === idToken;
-                let check2 = !data && d.attr.id === idToken;
+        return (!data || node.dataObj === data) && compareAgainst === compareToken;
+    };
 
-                if (check1 || check2) {
-                    nodes = d;
-                    return false;
-                }
+     for (let node of this.children) {
+        const compareToken = (selectorType === '.' || selectorType === '#') ? token : 
+                             (nodeSelector === 'group' ? 'g' : nodeSelector);
 
-                return true;
-            });
-        } else {
-            nodeSelector = nodeSelector === "group" ? "g" : nodeSelector;
-            this.children.forEach((d) => {
-                let check1 = data && d.dataObj && data === d.dataObj && d.nodeName === nodeSelector;
-                let check2 = !data && d.nodeName === nodeSelector;
-
-                if (check1 || check2) {
-                    nodes = d;
-                }
-            });
+        if (isMatch(node, compareToken)) {
+            matchedNode = node;
+            break;
         }
     }
 
-    return nodes;
+    return matchedNode;
 };
 
 function dataJoin(data, selector, config) {
     const self = this;
     const selectors = selector.split(",");
     let { joinOn } = config;
-    let joinResult = {
+    const joinResult = {
         new: {},
         update: {},
         old: {},
@@ -439,7 +426,7 @@ function dataJoin(data, selector, config) {
     }
 
     for (let i = 0, len = selectors.length; i < len; i++) {
-        let d = selectors[i];
+        const d = selectors[i];
         const nodes = self.fetchEls(d);
         const join = performJoin(data, nodes.stack, joinOn);
         joinResult.new[d] = join.new;
@@ -494,22 +481,24 @@ NodePrototype.prototype.data = function (data) {
 };
 
 NodePrototype.prototype.interrupt = function () {
-    if (this.animList && this.animList.length > 0) {
-        for (var i = this.animList.length - 1; i >= 0; i--) {
-            queueInstance.remove(this.animList[i]);
-        }
-    }
-    this.animList = [];
+    if (this.ctx && this.ctx.type_ === "pdf") return;
+    queueInstance.interruptNodeAnimations(this);
     return this;
 };
 
-NodePrototype.prototype.animateTo = function (targetConfig) {
-    queueInstance.add(animeId(), animate(this, targetConfig), easing(targetConfig.ease));
+NodePrototype.prototype.animateTo = function (toConfig, fromConfig) {
+    if (this.ctx && this.ctx.type_ === "pdf") return;
+    queueInstance.add(
+        animeId(),
+        animate(this, fromConfig || this, toConfig),
+        easing(toConfig.ease)
+    );
     return this;
 };
 
-NodePrototype.prototype.animateExe = function (targetConfig) {
-    return animate(this, targetConfig);
+NodePrototype.prototype.animateExe = function (targetConfig, fromConfig) {
+    if (this.ctx && this.ctx.type_ === "pdf") return;
+    return animate(this, fromConfig || this, targetConfig);
 };
 
 function fetchEls(nodeSelector, dataArray) {
@@ -613,31 +602,21 @@ function forEach(callBck) {
 }
 
 function setAttribute(key, value) {
-    let d;
+    const setAttrHelper = (element, attrKey, attrValue, index) => {
+        const resolvedValue = typeof attrValue === 'function' ? attrValue.call(element, element.dataObj, index) : attrValue;
+        element.setAttr(attrKey, resolvedValue);
+    };
 
     for (let i = 0, len = this.stack.length; i < len; i += 1) {
-        d = this.stack[i];
-
+        let element = this.stack[i];
         if (arguments.length > 1) {
-            if (typeof value === "function") {
-                d.setAttr(key, value.call(d, d.dataObj, i));
-            } else {
-                d.setAttr(key, value);
-            }
-        } else if (typeof key === "function") {
-            d.setAttr(key.call(d, d.dataObj, i));
-        } else {
-            const keys = Object.keys(key);
-
-            for (let j = 0, lenJ = keys.length; j < lenJ; j += 1) {
-                const keykey = keys[j];
-
-                if (typeof key[keykey] === "function") {
-                    d.setAttr(keykey, key[keykey].call(d, d.dataObj, i));
-                } else {
-                    d.setAttr(keykey, key[keykey]);
-                }
-            }
+            setAttrHelper(element, key, value, i);
+        } else if (typeof key === 'function') {
+            element.setAttr(key.call(element, element.dataObj, i));
+        } else if (typeof key === 'object' && key !== null) {
+            Object.entries(key).forEach(([attrKey, attrValue]) => {
+                setAttrHelper(element, attrKey, attrValue, i);
+            });
         }
     }
 
@@ -645,39 +624,22 @@ function setAttribute(key, value) {
 }
 
 function setStyle(key, value) {
-    let d;
+    const setStyleHelper = (element, styleKey, styleValue, index) => {
+        const resolvedValue = typeof styleValue === 'function' ? styleValue.call(element, element.dataObj, index) : styleValue;
+        element.setStyle(styleKey, resolvedValue);
+    };
 
     for (let i = 0, len = this.stack.length; i < len; i += 1) {
-        d = this.stack[i];
+        let element = this.stack[i];
 
         if (arguments.length > 1) {
-            if (typeof value === "function") {
-                d.setStyle(key, value.call(d, d.dataObj, i));
-            } else {
-                d.setStyle(key, value);
-            }
-        } else {
-            if (typeof key === "function") {
-                d.setStyle(key.call(d, d.dataObj, i));
-            } else {
-                const keys = Object.keys(key);
-
-                for (let j = 0, lenJ = keys.length; j < lenJ; j += 1) {
-                    const keykey = keys[j];
-
-                    if (typeof key[keykey] === "function") {
-                        d.setStyle(keykey, key[keykey].call(d, d.dataObj, i));
-                    } else {
-                        d.setStyle(keykey, key[keykey]);
-                    }
-                }
-            }
-
-            if (typeof key === "function") {
-                d.setStyle(key.call(d, d.dataObj, i));
-            } else {
-                d.setStyle(key);
-            }
+          setStyleHelper(element, key, value, i);
+        } else if (typeof key === 'function') {
+          element.setStyle(key.call(element, element.dataObj, i));
+        } else if (typeof key === 'object') {
+          Object.entries(key).forEach(([styleKey, styleValue]) => {
+            setStyleHelper(element, styleKey, styleValue, i);
+          });
         }
     }
 
@@ -777,7 +739,7 @@ function interrupt() {
 }
 
 function resolveObject(config, node, i) {
-    let obj = {};
+    const obj = {};
     let key;
 
     for (key in config) {
@@ -794,13 +756,10 @@ function resolveObject(config, node, i) {
 }
 
 const animateArrayTo = function animateArrayTo(config) {
-    let node;
-    let newConfig;
 
     for (let i = 0; i < this.stack.length; i += 1) {
-        newConfig = {};
-        node = this.stack[i];
-        newConfig = resolveObject(config, node, i);
+        let node = this.stack[i];
+        let newConfig = resolveObject(config, node, i);
 
         if (config.attr && typeof config.attr !== "function") {
             newConfig.attr = resolveObject(config.attr, node, i);
@@ -810,13 +769,9 @@ const animateArrayTo = function animateArrayTo(config) {
             newConfig.style = resolveObject(config.style, node, i);
         }
 
-        if (config.end) {
-            newConfig.end = config.end;
-        }
+        if (config.end) newConfig.end = config.end;
 
-        if (config.ease) {
-            newConfig.ease = config.ease;
-        }
+        if (config.ease) newConfig.ease = config.ease;
 
         node.animateTo(newConfig);
     }
@@ -825,14 +780,11 @@ const animateArrayTo = function animateArrayTo(config) {
 };
 
 const animateArrayExe = function animateArrayExe(config) {
-    let node;
-    let newConfig;
-    let exeArray = [];
+    const exeArray = [];
 
     for (let i = 0; i < this.stack.length; i += 1) {
-        newConfig = {};
-        node = this.stack[i];
-        newConfig = resolveObject(config, node, i);
+        let node = this.stack[i];
+        let newConfig = resolveObject(config, node, i);
 
         if (config.attr && typeof config.attr !== "function") {
             newConfig.attr = resolveObject(config.attr, node, i);
@@ -842,13 +794,9 @@ const animateArrayExe = function animateArrayExe(config) {
             newConfig.style = resolveObject(config.style, node, i);
         }
 
-        if (config.end) {
-            newConfig.end = config.end;
-        }
+        if (config.end) newConfig.end = config.end;
 
-        if (config.ease) {
-            newConfig.ease = config.ease;
-        }
+        if (config.ease) newConfig.ease = config.ease;
 
         exeArray.push(node.animateExe(newConfig));
     }
@@ -858,17 +806,25 @@ const animateArrayExe = function animateArrayExe(config) {
 
 const animatePathArrayTo = function animatePathArrayTo(config) {
     let node;
-    let keys = Object.keys(config);
+    const keys = Object.keys(config);
 
     for (let i = 0, len = this.stack.length; i < len; i += 1) {
         node = this.stack[i];
-        let conf = {};
+        const conf = {};
 
         for (let j = 0; j < keys.length; j++) {
             let value = config[keys[j]];
 
             if (typeof value === "function") {
                 value = value.call(node, node.dataObj, i);
+            }
+
+            if (keys[j] === 'attr' && typeof config.attr !== "function") {
+                value = resolveObject(config.attr, node, i);
+            }
+
+            if (keys[j] === 'style' && typeof config.style !== "function") {
+                value = resolveObject(config.style, node, i);
             }
 
             conf[keys[j]] = value;
@@ -896,24 +852,7 @@ const textArray = function textArray(value) {
     }
 
     return this;
-}; // function DomPattern (self, pattern, repeatInd) {
-// }
-// DomPattern.prototype.exe = function () {
-//   return this.pattern
-// }
-// function createDomPattern (url, config) {
-//   // new DomPattern(this, patternObj, repeatInd)
-//   let patternEl = this.createEl({
-//     el: 'pattern'
-//   })
-//   patternEl.createEl({
-//     el: 'image',
-//     attr: {
-//       'xlink:href': url
-//     }
-//   })
-// }
-// CreateElements as CollectionPrototype
+};
 
 function CollectionPrototype(contextInfo, data, config, vDomIndex) {
     if (!data) {
@@ -924,10 +863,9 @@ function CollectionPrototype(contextInfo, data, config, vDomIndex) {
     let key;
     const attrKeys = config ? (config.attr ? Object.keys(config.attr) : []) : [];
     const styleKeys = config ? (config.style ? Object.keys(config.style) : []) : [];
-    const bbox = config ? (config["bbox"] !== undefined ? config["bbox"] : true) : true;
+    const bbox = config ? (config.bbox !== undefined ? config.bbox : true) : true;
     this.stack = data.map((d, i) => {
-        let node;
-        node = this.createNode(
+        const node = this.createNode(
             contextInfo.ctx,
             {
                 el: config.el,
@@ -941,9 +879,9 @@ function CollectionPrototype(contextInfo, data, config, vDomIndex) {
 
             if (typeof config.style[key] === "function") {
                 const resValue = config.style[key].call(node, d, i);
-                node.setStyle(key, resValue);
+                node.style[key] = resValue;
             } else {
-                node.setStyle(key, config.style[key]);
+                node.style[key] = config.style[key];
             }
         }
 
@@ -953,9 +891,10 @@ function CollectionPrototype(contextInfo, data, config, vDomIndex) {
             if (key !== "transform") {
                 if (typeof config.attr[key] === "function") {
                     const resValue = config.attr[key].call(node, d, i);
-                    node.setAttr(key, resValue);
+                    node.attr[key] = resValue;
+
                 } else {
-                    node.setAttr(key, config.attr[key]);
+                    node.attr[key] = config.attr[key];
                 }
             } else {
                 if (typeof config.attr.transform === "function") {
@@ -1004,7 +943,7 @@ CollectionPrototype.prototype.wrapper = function wrapper(nodes) {
 
     if (nodes) {
         for (let i = 0, len = nodes.length; i < len; i++) {
-            let node = nodes[i];
+            const node = nodes[i];
             self.stack.push(node);
         }
     }
@@ -1012,4 +951,83 @@ CollectionPrototype.prototype.wrapper = function wrapper(nodes) {
     return this;
 };
 
-export { NodePrototype, CollectionPrototype };
+const layerResizeHandler = function (entries) {
+    for (const key in entries) {
+        const entry = entries[key];
+        const cr = entry.contentRect;
+        if (entry.target.resizeHandler) {
+            entry.target.resizeHandler.forEach(function (exec) {
+                exec(cr);
+            });
+        }
+    }
+};
+
+function layerResizeBind(layer, handler) {
+    if (!layer.ro) {
+        layer.ro = new ResizeObserver(layerResizeHandler);
+        layer.ro.observe(layer.container);
+    }
+    if (!layer.container.resizeHandler) {
+        layer.container.resizeHandler = [];
+    }
+    layer.container.resizeHandler.push(handler);
+}
+
+function layerResizeUnBind(layer, handler) {
+    if (!layer.container.resizeHandler) {
+        return;
+    }
+    const execIndex = layer.container.resizeHandler.indexOf(handler);
+    if (execIndex !== -1) {
+        layer.container.resizeHandler.splice(execIndex, 1);
+    }
+    if (layer.container.resizeHandler.length === 0 && layer.ro) {
+        layer.ro.disconnect();
+    }
+}
+
+function prepArrayProxy(arr, context, BBoxUpdate) {
+    const handlr = {
+        get(target, prop) {
+            if (prop === 'push') {
+              return (...args) => {
+                queueInstance.vDomChanged(context.vDomIndex);
+                if (BBoxUpdate) {
+                    context.BBoxUpdate = true;
+                }
+                return target.push(...args);
+              };
+            } else if (prop === 'pop') {
+              return (...args) => {
+                queueInstance.vDomChanged(context.vDomIndex);
+                if (BBoxUpdate) {
+                    context.BBoxUpdate = true;
+                }
+                return target.pop(...args);
+              };
+            } else {
+              return target[prop];
+            }
+        },
+        set(obj, prop, value) {
+            obj[prop] = value;
+            queueInstance.vDomChanged(context.vDomIndex);
+            if (BBoxUpdate) {
+                context.BBoxUpdate = true;
+            }
+            return true;
+        },
+        deleteProperty() {
+            queueInstance.vDomChanged(context.vDomIndex);
+            if (BBoxUpdate) {
+                context.BBoxUpdate = true;
+            }
+            return Reflect.deleteProperty(...arguments);
+        }
+    };
+
+    return new Proxy(arr || [], handlr);
+}
+
+export { NodePrototype, CollectionPrototype, layerResizeBind, layerResizeUnBind, prepArrayProxy };

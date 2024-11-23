@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html style="height: 100%">
+    <head>
+        <title></title>
+    </head>
+    <body style="height: 100%">
+        <div id="mySvg" style="height: 100%; width: 100%"></div>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import {svgLayer } from "i2djs";
+            var renderer = svgLayer("#mySvg");
+
+            var text = renderer
+                .createEl({
+                    el: "text",
+                    attr: {
+                        x: 300,
+                        y: 300,
+                        text: 'I2Djs - V4'
+                    },
+                    style: {
+                        "font-size": "25px",
+                        fill: "#ff0000",
+                    },
+                });
+
+            let ii = 0;
+            setInterval(function (argument) {
+                ii += 1;
+                text.attr.text = 'I2Djs - V'+ii;
+            }, 100);
+        </script>
+    </body>
+</html>

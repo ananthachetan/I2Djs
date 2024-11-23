@@ -1,21 +1,30 @@
 <!DOCTYPE html>
-<html lang="en" style="height: 100%;">
+<html lang="en" style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <input type="file" onchange="onFileSelected(event)" value="chose picture" />
-        <div id="imgParent" style="display: none;">
+    <body style="height: 100%">
+        <input type="file" id="inputel" value="chose picture" />
+        <div id="imgParent" style="display: none">
             <img id="myimage" />
         </div>
-        <div id="myCanvas" style="height: 100%; width: 100%;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
-
-        <script type="text/javascript">
+        <div id="myCanvas" style="height: 100%; width: 100%"></div>
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import { canvasLayer } from "i2djs";
             var imgtag = document.getElementById("myimage");
+            var inEl = document.getElementById("inputel");
+            let context;
             //Setting Default Image, you can load any image using input box.
             // imgtag.src = "uchiha_madara.jpg";
             imgtag.onload = render;
+            inEl.onchange = onFileSelected;
 
             function onFileSelected(event) {
                 var selectedFile = event.target.files[0];
@@ -28,7 +37,7 @@
                 reader.readAsDataURL(selectedFile);
             }
 
-            var renderer_ = i2d.canvasLayer("#myCanvas", {}, true);
+            var renderer_ = canvasLayer("#myCanvas", {}, {});
             var height = renderer_.height;
             var width = renderer_.width;
             var wh = Math.min(height, width);
@@ -54,12 +63,8 @@
                 canvas = document.createElement("canvas");
                 canvas.width = width;
                 canvas.height = height;
-                context = canvas.getContext("2d");
+                context = canvas.getContext("2d", {});
                 context.drawImage(img, 0, 0, width, height);
-
-                // g.setAttr('transform', {
-                //     translate: [width / 2, height/ 2]
-                // })
             }
 
             function breakCircle(d, i) {
@@ -162,7 +167,6 @@
                     1,
                     1
                 ).data;
-                console.log(pixelData);
                 g.createEl({
                     el: "circle",
                     attr: {

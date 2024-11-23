@@ -1,29 +1,29 @@
 <!DOCTYPE html>
-<html style="height: 100%;">
+<html style="height: 100%">
     <head>
         <title></title>
     </head>
-    <body style="height: 100%;">
-        <div id="myCanvas" style="height: 100%; width: 100%; position: absolute;"></div>
-        <script type="text/javascript" src="../../dist/i2d.js"></script>
+    <body style="height: 100%">
+        <div id="myCanvas" style="height: 100%; width: 100%; position: absolute"></div>
 
-        <script type="text/javascript">
-            var renderer_ = i2d.canvasLayer("#myCanvas", {}, {});
+        <script type="importmap">
+            {
+                "imports": {
+                    "i2djs": "../../dist/i2d.esm.min.js"
+                }
+            }
+        </script>
+        <script type="module">
+            import { canvasLayer } from "i2djs";
+            var renderer_ = canvasLayer("#myCanvas", {}, {});
 
             var clipInstance = renderer_.createClip();
-            clipInstance.clip.createEls([1, 2, 3, 4, 5, 6], {
+            clipInstance.clip.createEl({
                 el: "circle",
                 attr: {
-                    cx: function (d) {
-                        console.log(d);
-                        return Math.random() * 566 * 2;
-                    },
-                    cy: function (d) {
-                        return Math.random() * 200 * 2;
-                    },
-                    r: function (d) {
-                        return 50 + Math.random() * 100;
-                    },
+                    cx: Math.random() * 566 * 2,
+                    cy: Math.random() * 200 * 2,
+                    r: 50 + Math.random() * 100
                 },
             });
 
